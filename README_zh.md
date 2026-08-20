@@ -1,3 +1,9 @@
+<div align="center">
+  
+  ![icon](https://raw.githubusercontent.com/Chendaqian/StudioPulse/refs/heads/master/src/StudioPulse/Resources/icon.png)
+  
+</div>
+
 # CornerCalendar
 
 [![.NET 8](https://img.shields.io/badge/.NET-8-blue)](https://dotnet.microsoft.com/)
@@ -11,6 +17,12 @@
 [![GitHub Last Commit](https://img.shields.io/github/last-commit/Chendaqian/CornerCalendar?style=flat)](https://github.com/Chendaqian/CornerCalendar/commits/master)
 
 **[English](README.md) | 简体中文**
+
+<div align="center">
+  
+  ![icon](https://raw.githubusercontent.com/Chendaqian/CornerCalendar/refs/heads/master/src/CornerCalendar/Resources/mainInfo.png)
+  
+</div>
 
 CornerCalendar 是一款 Windows 日历小工具，用紧凑的月历面板替换任务栏日历弹窗。程序常驻系统托盘，点击任务栏时间即可打开，不需要启动完整的桌面日历应用。
 
