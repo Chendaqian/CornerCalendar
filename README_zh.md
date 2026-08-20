@@ -101,3 +101,19 @@ Windows 日历 API 实现仍保留在仓库中，但由于需要 Windows SDK 和
 ## 许可证
 
 CornerCalendar 使用 [MIT License](LICENSE.txt) 开源。
+
+## 共建者
+
+<a href="https://github.com/Chendaqian/MagicCenterHub/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=Chendaqian/MagicCenterHub" />
+</a>
+
+## 星标历史
+
+<a href="https://www.star-history.com/?repos=Chendaqian%2FCornerCalendar&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Chendaqian/CornerCalendar&type=date&theme=dark&legend=top-left&sealed_token=GSQCZEqbIKA2ooC2Ro_m5B-BQOYdGGq1wjfaNu0yuioAu4cB8U4I4SZEkKp8fwhPgbCyRHmroRbKl3rs7RpAYNDVB-HHxiRzhy9KSm61wEvrJtelCgGK1U7DOeMQ5vP9q1Rg57rbJ1Ms6V_GKDx0zdoEw7_ru9hMswBpzHh_Bx6wLYeTSR4ReJW1C0fL" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Chendaqian/CornerCalendar&type=date&legend=top-left&sealed_token=GSQCZEqbIKA2ooC2Ro_m5B-BQOYdGGq1wjfaNu0yuioAu4cB8U4I4SZEkKp8fwhPgbCyRHmroRbKl3rs7RpAYNDVB-HHxiRzhy9KSm61wEvrJtelCgGK1U7DOeMQ5vP9q1Rg57rbJ1Ms6V_GKDx0zdoEw7_ru9hMswBpzHh_Bx6wLYeTSR4ReJW1C0fL" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Chendaqian/CornerCalendar&type=date&legend=top-left&sealed_token=GSQCZEqbIKA2ooC2Ro_m5B-BQOYdGGq1wjfaNu0yuioAu4cB8U4I4SZEkKp8fwhPgbCyRHmroRbKl3rs7RpAYNDVB-HHxiRzhy9KSm61wEvrJtelCgGK1U7DOeMQ5vP9q1Rg57rbJ1Ms6V_GKDx0zdoEw7_ru9hMswBpzHh_Bx6wLYeTSR4ReJW1C0fL" />
+ </picture>
+</a>

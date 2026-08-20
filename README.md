@@ -101,3 +101,19 @@ The Windows Calendar API implementation is kept in the repository but excluded f
 ## License
 
 CornerCalendar is released under the [MIT License](LICENSE.txt).
+
+## Contributors
+
+<a href="https://github.com/Chendaqian/MagicCenterHub/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=Chendaqian/MagicCenterHub" />
+</a>
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=Chendaqian%2FCornerCalendar&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Chendaqian/CornerCalendar&type=date&theme=dark&legend=top-left&sealed_token=GSQCZEqbIKA2ooC2Ro_m5B-BQOYdGGq1wjfaNu0yuioAu4cB8U4I4SZEkKp8fwhPgbCyRHmroRbKl3rs7RpAYNDVB-HHxiRzhy9KSm61wEvrJtelCgGK1U7DOeMQ5vP9q1Rg57rbJ1Ms6V_GKDx0zdoEw7_ru9hMswBpzHh_Bx6wLYeTSR4ReJW1C0fL" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Chendaqian/CornerCalendar&type=date&legend=top-left&sealed_token=GSQCZEqbIKA2ooC2Ro_m5B-BQOYdGGq1wjfaNu0yuioAu4cB8U4I4SZEkKp8fwhPgbCyRHmroRbKl3rs7RpAYNDVB-HHxiRzhy9KSm61wEvrJtelCgGK1U7DOeMQ5vP9q1Rg57rbJ1Ms6V_GKDx0zdoEw7_ru9hMswBpzHh_Bx6wLYeTSR4ReJW1C0fL" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Chendaqian/CornerCalendar&type=date&legend=top-left&sealed_token=GSQCZEqbIKA2ooC2Ro_m5B-BQOYdGGq1wjfaNu0yuioAu4cB8U4I4SZEkKp8fwhPgbCyRHmroRbKl3rs7RpAYNDVB-HHxiRzhy9KSm61wEvrJtelCgGK1U7DOeMQ5vP9q1Rg57rbJ1Ms6V_GKDx0zdoEw7_ru9hMswBpzHh_Bx6wLYeTSR4ReJW1C0fL" />
+ </picture>
+</a>
