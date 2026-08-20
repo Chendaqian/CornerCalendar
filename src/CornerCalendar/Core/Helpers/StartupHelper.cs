@@ -3,11 +3,12 @@ using Microsoft.Win32;
 namespace CornerCalendar.Core.Helpers;
 
 /// <summary>
-/// 开机自启动工具：通过注册表当前用户 Run 键实现
+/// 开机自启动工具：通过当前用户的注册表 Run 键实现
 /// </summary>
 public static class StartupHelper
 {
-    private const string AppName = "miniCal";
+    private const string AppName = "CornerCalendar";
+
     private const string RunKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
 
     /// <summary>
@@ -50,8 +51,7 @@ public static class StartupHelper
         try
         {
             using RegistryKey? key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: false);
-            string? value = key?.GetValue(AppName) as string;
-            return value == Environment.ProcessPath;
+            return key?.GetValue(AppName) as string == Environment.ProcessPath;
         }
         catch
         {

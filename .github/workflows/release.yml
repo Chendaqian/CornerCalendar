@@ -1,0 +1,101 @@
+# 推送版本 tag（如 v1.0.1 或 1.0.1）后自动构建并发布 GitHub Release。
+# 版本号从实际构建出的 CornerCalendar.dll 程序集读取：
+#   - tag 只作触发器，其名称必须与程序集版本一致（可带 v 前缀），否则工作流报错中止；
+#   - 制品命名、二进制文件版本和 Release 名称均使用程序集版本。
+# 制品与 scripts\Publish-Artifacts.ps1 完全一致（CI 直接复用该脚本）：
+#   - CornerCalendar-<版本>-win-x64-self-contained  自包含（含 .NET 运行时，开箱即用）
+#   - CornerCalendar-<版本>-win-x64-framework       框架依赖（需安装 .NET 8 桌面运行时）
+# 均为多文件目录、不含 PDB；上传 Release 时压缩为 zip（本地 release/ 目录只保留目录制品，不产生 zip）。
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - '[0-9]*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: 构建并发布 Release
+    runs-on: windows-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: 构建并读取程序集版本
+        id: read_version
+        shell: pwsh
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $probeRoot = Join-Path $env:RUNNER_TEMP 'CornerCalendar-version-probe'
+          if (Test-Path -LiteralPath $probeRoot) {
+            Remove-Item -LiteralPath $probeRoot -Recurse -Force
+          }
+
+          # 先生成实际程序集，再从 AssemblyName.Version 读取版本，避免只读取源码文本。
+          & dotnet build src\CornerCalendar\CornerCalendar.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained false `
+            -p:DebugType=None `
+            -o $probeRoot `
+            -nologo `
+            -v minimal
+          if ($LASTEXITCODE -ne 0) {
+            throw "程序集版本探针构建失败，退出码：$LASTEXITCODE"
+          }
+
+          $assemblyPath = Join-Path $probeRoot 'CornerCalendar.dll'
+          if (-not (Test-Path -LiteralPath $assemblyPath -PathType Leaf)) {
+            throw "找不到程序集：$assemblyPath"
+          }
+
+          $assemblyVersion = [System.Reflection.AssemblyName]::GetAssemblyName($assemblyPath).Version.ToString()
+          # .NET AssemblyVersion 通常补齐为四段，发布版本保留项目使用的三段形式。
+          if ($assemblyVersion -match '^(\d+\.\d+\.\d+)\.0$') {
+            $assemblyVersion = $Matches[1]
+          }
+
+          $tagVersion = $env:TAG_NAME.TrimStart('v')
+          if ($tagVersion -ne $assemblyVersion) {
+            throw "tag 版本 '$tagVersion' 与程序集版本 '$assemblyVersion' 不一致。请先更新 CornerCalendar.csproj 的 <Version>，提交后再推送匹配的 tag。"
+          }
+          "APP_VERSION=$assemblyVersion" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "version=$assemblyVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "程序集版本：$assemblyVersion"
+          Write-Host "✓ tag 与程序集版本一致：$tagVersion"
+
+      - name: 发布制品
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\Publish-Artifacts.ps1 -Version $env:APP_VERSION
+
+      - name: 压缩发布包
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = $env:APP_VERSION
+          New-Item -ItemType Directory -Path release -Force | Out-Null
+          Compress-Archive -Path "release\CornerCalendar-v$version-win-x64-self-contained" -DestinationPath "release\CornerCalendar-v$version-win-x64-self-contained.zip"
+          Compress-Archive -Path "release\CornerCalendar-v$version-win-x64-framework" -DestinationPath "release\CornerCalendar-v$version-win-x64-framework.zip"
+
+      - name: 创建 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: CornerCalendar v${{ steps.read_version.outputs.version }}
+          files: |
+            release/*.zip
+          generate_release_notes: true

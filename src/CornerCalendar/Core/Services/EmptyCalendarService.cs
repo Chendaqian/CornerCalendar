@@ -10,15 +10,6 @@ public class EmptyCalendarService : ICalendarService
     public Task<List<CalendarEvent>> GetEventsAsync(DateTime start, DateTime end)
         => Task.FromResult(new List<CalendarEvent>());
 
-    public Task<bool> IsAvailableAsync()
-        => Task.FromResult(false);
-
-    public Task<List<CalendarAccountInfo>> GetCalendarAccountsAsync()
-        => Task.FromResult(new List<CalendarAccountInfo>());
-
     public Task ForceRefreshAsync()
         => Task.CompletedTask;
-
-    public void OpenSystemCalendarApp()
-    { }
 }

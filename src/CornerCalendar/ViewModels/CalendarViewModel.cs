@@ -3,6 +3,7 @@ using CornerCalendar.Core.Models;
 using CornerCalendar.Core.Services;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
 namespace CornerCalendar.ViewModels;
@@ -10,7 +11,7 @@ namespace CornerCalendar.ViewModels;
 /// <summary>
 /// 日历主 ViewModel：月份导航、日期网格生成、事件聚合
 /// </summary>
-public class CalendarViewModel : INotifyPropertyChanged
+public class CalendarViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly ICalendarService _calendarService;
 
@@ -19,6 +20,10 @@ public class CalendarViewModel : INotifyPropertyChanged
     private string _monthDisplay = string.Empty;
     private DateTime _selectedDate = DateTime.Today;
     private bool _isLoading;
+    private string? _errorText;
+
+    private IReadOnlyDictionary<DateTime, ChinaCalendarDayInfo> _chinaCalendarInfo =
+        new Dictionary<DateTime, ChinaCalendarDayInfo>();
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -78,6 +83,17 @@ public class CalendarViewModel : INotifyPropertyChanged
         set { _isLoading = value; OnPropertyChanged(); }
     }
 
+    private const string LoadErrorMessage = "日程加载失败，请检查网络或数据源设置";
+
+    /// <summary>
+    /// 数据加载失败的错误提示（加载成功时为 null）
+    /// </summary>
+    public string? ErrorText
+    {
+        get => _errorText;
+        set { _errorText = value; OnPropertyChanged(); }
+    }
+
     /// <summary>
     /// 日历网格数据（6行7列 = 42天，含上下月补位）
     /// </summary>
@@ -106,9 +122,11 @@ public class CalendarViewModel : INotifyPropertyChanged
     {
         _calendarService = calendarService;
 
-        // 从设置加载近期事件天数（避免使用硬编码默认值 3）
+        // 首次刷新前加载全部影响渲染的设置（周起始日 / 近期事件天数），
+        // 保证第一次生成网格就用正确的周起始日，避免首屏双重刷新
         AppSettings settings = AppSettings.Load();
         UpcomingDays = settings.UpcomingDays;
+        WeekStartDay = settings.WeekStartDay == Core.Services.WeekStartDay.Monday ? 1 : 0;
 
         NavigateToToday();
     }
@@ -120,14 +138,28 @@ public class CalendarViewModel : INotifyPropertyChanged
     {
         AppSettings settings = AppSettings.Load();
 
-        return settings.DataSource switch
+        List<ICalendarService> services = new()
         {
-            DataSourceType.IcsUrl => CreateIcsService(settings),
-            DataSourceType.Both => new AggregateCalendarService(
-                CreateSystemService(),
-                CreateIcsService(settings)),
-            _ => CreateSystemService()
+            new ChinaCalendarService(settings.IcsRefreshMinutes)
         };
+
+        switch (settings.DataSource)
+        {
+            case DataSourceType.IcsUrl:
+                services.Add(CreateIcsService(settings));
+                break;
+
+            case DataSourceType.Both:
+                services.Add(CreateSystemService());
+                services.Add(CreateIcsService(settings));
+                break;
+
+            default:
+                services.Add(CreateSystemService());
+                break;
+        }
+
+        return new AggregateCalendarService(services.ToArray());
     }
 
     private static ICalendarService CreateSystemService()
@@ -146,7 +178,9 @@ public class CalendarViewModel : INotifyPropertyChanged
             // WinRT not available
         }
 
-        return new MockCalendarService();
+        // WindowsCalendarService 被排除编译（需要 Windows SDK），系统日历集成未启用。
+        // 回退到空实现 —— 绝不向用户展示编造的假日程（ISSUES #1）
+        return new EmptyCalendarService();
     }
 
     private static readonly string[] SubscriptionColors = {
@@ -201,9 +235,10 @@ public class CalendarViewModel : INotifyPropertyChanged
         {
             string host = new Uri(url).Host;
             // 移除常见前缀
-            if (host.StartsWith("calendar.")) host = host.Substring("calendar.".Length);
-            if (host.StartsWith("www.")) host = host.Substring("www.".Length);
-            if (host.StartsWith("cal.")) host = host.Substring("cal.".Length);
+            if (host.StartsWith("calendar.")) host = host["calendar.".Length..];
+            if (host.StartsWith("www.")) host = host["www.".Length..];
+            if (host.StartsWith("cal.")) host = host["cal.".Length..];
+
             return host;
         }
         catch
@@ -220,6 +255,28 @@ public class CalendarViewModel : INotifyPropertyChanged
         Year = DateTime.Today.Year;
         Month = DateTime.Today.Month;
         SelectedDate = DateTime.Today;
+        UpdateMonthDisplay();
+        _ = RefreshDataAsync();
+    }
+
+    public void NavigateToMonth(int year, int month)
+    {
+        if (month is < 1 or > 12)
+            throw new ArgumentOutOfRangeException(nameof(month));
+
+        int day = Math.Min(SelectedDate.Day, DateTime.DaysInMonth(year, month));
+        NavigateToDate(new DateTime(year, month, day));
+    }
+
+    /// <summary>
+    /// 导航到指定日期，并将该日期设为选中日期。
+    /// </summary>
+    public void NavigateToDate(DateTime date)
+    {
+        date = date.Date;
+        Year = date.Year;
+        Month = date.Month;
+        SelectedDate = date;
         UpdateMonthDisplay();
         _ = RefreshDataAsync();
     }
@@ -289,9 +346,11 @@ public class CalendarViewModel : INotifyPropertyChanged
         try
         {
             events = await _calendarService.GetEventsAsync(fromDate.Date, endDate);
+            ErrorText = null;
         }
         catch
         {
+            ErrorText = LoadErrorMessage;
             return;
         }
 
@@ -307,36 +366,23 @@ public class CalendarViewModel : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// 强制刷新（忽略缓存，重新拉取）
+    /// 强制刷新（忽略缓存，重新拉取）。
+    /// 刷新失败不向调用方抛错：设置 ErrorText 由界面提示（单个 ICS 服务无缓存断网时，
+    /// 服务层会抛异常，若不管在这里会变成事件处理器里的未处理异常）。
     /// </summary>
     public async Task ForceRefreshAsync()
     {
-        await _calendarService.ForceRefreshAsync();
+        try
+        {
+            await _calendarService.ForceRefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"CornerCalendar: ForceRefreshAsync failed: {ex.Message}");
+            ErrorText = LoadErrorMessage;
+        }
+
         await RefreshDataAsync();
-    }
-
-    /// <summary>
-    /// 获取日历账户列表
-    /// </summary>
-    public Task<List<CalendarAccountInfo>> GetCalendarAccountsAsync()
-    {
-        return _calendarService.GetCalendarAccountsAsync();
-    }
-
-    /// <summary>
-    /// 检查日历服务是否可用
-    /// </summary>
-    public Task<bool> IsCalendarAvailableAsync()
-    {
-        return _calendarService.IsAvailableAsync();
-    }
-
-    /// <summary>
-    /// 打开系统日历应用
-    /// </summary>
-    public void OpenSystemCalendar()
-    {
-        _calendarService.OpenSystemCalendarApp();
     }
 
     /// <summary>
@@ -358,17 +404,37 @@ public class CalendarViewModel : INotifyPropertyChanged
             try
             {
                 events = await _calendarService.GetEventsAsync(rangeStart, rangeEnd);
+                ErrorText = null;
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"CornerCalendar: RefreshDataAsync failed: {ex.Message}");
                 events = new List<CalendarEvent>();
+                ErrorText = LoadErrorMessage;
+            }
+
+            if (_calendarService is IChinaCalendarDataProvider chinaCalendarProvider)
+            {
+                try
+                {
+                    _chinaCalendarInfo = await chinaCalendarProvider.GetDayInfoAsync(rangeStart, rangeEnd);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"CornerCalendar: ChinaCalendar info refresh failed: {ex.Message}");
+                    _chinaCalendarInfo = new Dictionary<DateTime, ChinaCalendarDayInfo>();
+                }
+            }
+            else
+            {
+                _chinaCalendarInfo = new Dictionary<DateTime, ChinaCalendarDayInfo>();
             }
 
             // 用事件数据重新生成网格（更新事件点标记）
             GenerateCalendarGrid(events);
 
-            // 生成近期事件列表
-            GenerateUpcomingEvents();
+            // 生成近期事件列表（await 统一的 Task 方法，替代原 async void 实现）
+            await UpdateUpcomingEventsFromDateAsync(SelectedDate);
         }
         finally
         {
@@ -408,16 +474,27 @@ public class CalendarViewModel : INotifyPropertyChanged
                     : date.Date == e.StartTime.Date
             ).ToList();
 
-            // 获取农历文本
-            string lunarText = LunarCalendarHelper.GetLunarDateText(date);
+            _chinaCalendarInfo.TryGetValue(date.Date, out ChinaCalendarDayInfo? chinaInfo);
+            (string calculatedSuitable, string calculatedAvoid) = HuangLiHelper.GetDayYiJi(date);
 
             CalendarDays.Add(new CalendarDay(
                 Date: date,
                 IsCurrentMonth: isCurrentMonth,
                 IsToday: isToday,
                 HasEvents: dayEvents.Count > 0,
-                LunarDate: lunarText,
-                Events: dayEvents
+                LunarDate: chinaInfo?.LunarDate ?? string.Empty,
+                LunarFestival: chinaInfo?.LunarFestival ?? string.Empty,
+                SolarTerm: chinaInfo?.SolarTerm ?? string.Empty,
+                LegalHoliday: chinaInfo?.LegalHoliday ?? string.Empty,
+                IsWorkday: chinaInfo?.IsWorkday ?? false,
+                HolidayDayIndex: chinaInfo?.HolidayDayIndex ?? 0,
+                Events: dayEvents,
+                SuitableActivities: string.IsNullOrWhiteSpace(chinaInfo?.SuitableActivities)
+                    ? calculatedSuitable
+                    : chinaInfo.SuitableActivities,
+                AvoidActivities: string.IsNullOrWhiteSpace(chinaInfo?.AvoidActivities)
+                    ? calculatedAvoid
+                    : chinaInfo.AvoidActivities
             ));
         }
 
@@ -442,37 +519,6 @@ public class CalendarViewModel : INotifyPropertyChanged
         }
     }
 
-    /// <summary>
-    /// 生成近期事件列表（以选中日期为基准，N 天内，最多 100 条）
-    /// </summary>
-    private async void GenerateUpcomingEvents()
-    {
-        UpcomingEvents.Clear();
-
-        DateTime fromDate = SelectedDate.Date;
-        DateTime endDate = fromDate.AddDays(UpcomingDays);
-
-        List<CalendarEvent> events;
-        try
-        {
-            events = await _calendarService.GetEventsAsync(fromDate, endDate);
-        }
-        catch
-        {
-            return;
-        }
-
-        // 按时间排序，取前 100 条
-        IEnumerable<CalendarEvent> sorted = events
-            .OrderBy(e => e.StartTime)
-            .Take(100);
-
-        foreach (CalendarEvent? evt in sorted)
-        {
-            UpcomingEvents.Add(evt);
-        }
-    }
-
     private void UpdateMonthDisplay()
     {
         MonthDisplay = $"{Year}年{Month}月";
@@ -481,5 +527,13 @@ public class CalendarViewModel : INotifyPropertyChanged
     protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    /// <summary>
+    /// 释放持有的日历服务（如 ICS 服务的 HttpClient / 信号量）
+    /// </summary>
+    public void Dispose()
+    {
+        (_calendarService as IDisposable)?.Dispose();
     }
 }

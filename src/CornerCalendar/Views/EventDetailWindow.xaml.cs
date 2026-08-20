@@ -1,6 +1,8 @@
 using CornerCalendar.Core.Models;
 using CornerCalendar.ViewModels;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Shapes;
 
 namespace CornerCalendar.Views;
 
@@ -11,79 +13,151 @@ public partial class EventDetailWindow : Window
         InitializeComponent();
     }
 
-    /// <summary>
-    /// 显示指定事件的详情，并定位到主面板左侧
-    /// </summary>
-    public void ShowEvent(CalendarEvent evt, Window mainPanel)
+    public void ShowDay(CalendarDay day, Window mainPanel)
     {
-        DetailTitle.Text = evt.Title;
-        DetailTime.Text = EventListViewModel.FormatEventTime(evt);
+        DayTitle.Text = day.Date.ToString("yyyy年M月d日 dddd");
+        DaySubtitle.Text = day.IsToday ? "今天" : "日期详情";
+        LunarText.Text = string.IsNullOrWhiteSpace(day.LunarDate)
+            ? "农历信息暂无"
+            : $"农历 {day.LunarDate}";
 
-        // 地点
-        if (!string.IsNullOrEmpty(evt.Location))
-        {
-            LocationPanel.Visibility = Visibility.Visible;
-            DetailLocation.Text = evt.Location;
-        }
-        else
-        {
-            LocationPanel.Visibility = Visibility.Collapsed;
-        }
+        List<string> festivalParts = new();
+        if (!string.IsNullOrWhiteSpace(day.LunarFestival))
+            festivalParts.Add(day.LunarFestival);
+        if (!string.IsNullOrWhiteSpace(day.SolarTerm))
+            festivalParts.Add($"节气 {day.SolarTerm}");
+        FestivalText.Text = string.Join("  ·  ", festivalParts);
+        FestivalText.Visibility = festivalParts.Count == 0
+            ? Visibility.Collapsed
+            : Visibility.Visible;
 
-        // 日历来源
-        if (!string.IsNullOrEmpty(evt.CalendarName))
-        {
-            CalendarPanel.Visibility = Visibility.Visible;
-            DetailCalendar.Text = evt.CalendarName;
-        }
-        else
-        {
-            CalendarPanel.Visibility = Visibility.Collapsed;
-        }
+        List<string> holidayParts = new();
+        if (!string.IsNullOrWhiteSpace(day.LegalHoliday))
+            holidayParts.Add(day.LegalHoliday);
+        if (day.IsWorkday)
+            holidayParts.Add("调休补班");
+        else if (day.Date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
+            holidayParts.Add("周末休息");
+        HolidayText.Text = string.Join("  ·  ", holidayParts);
+        HolidayText.Visibility = holidayParts.Count == 0
+            ? Visibility.Collapsed
+            : Visibility.Visible;
 
-        // 描述
-        if (!string.IsNullOrEmpty(evt.Description))
-        {
-            DescSeparator.Visibility = Visibility.Visible;
-            DetailDescription.Visibility = Visibility.Visible;
-            DetailDescription.Text = evt.Description;
-        }
-        else
-        {
-            DescSeparator.Visibility = Visibility.Collapsed;
-            DetailDescription.Visibility = Visibility.Collapsed;
-        }
+        SuitableText.Text = string.IsNullOrWhiteSpace(day.SuitableActivities)
+            ? "暂无数据"
+            : day.SuitableActivities;
+        AvoidText.Text = string.IsNullOrWhiteSpace(day.AvoidActivities)
+            ? "暂无数据"
+            : day.AvoidActivities;
 
-        // 先 Show 以获取实际尺寸
+        DayEventsPanel.Children.Clear();
+        List<CalendarEvent> events = day.Events.OrderBy(evt => evt.StartTime).ToList();
+        EventCountText.Text = $"{events.Count} 项";
+        NoEventsText.Visibility = events.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        foreach (CalendarEvent calendarEvent in events)
+            DayEventsPanel.Children.Add(CreateEventItem(calendarEvent));
+
         Show();
-
-        // 定位到主面板左侧，垂直居中对齐
         UpdatePosition(mainPanel);
     }
 
-    /// <summary>
-    /// 更新位置到主面板左侧，底部对齐
-    /// </summary>
+    private static FrameworkElement CreateEventItem(CalendarEvent calendarEvent)
+    {
+        Border border = new()
+        {
+            BorderBrush = Application.Current.TryFindResource("SeparatorBrush") as System.Windows.Media.Brush,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(10, 8, 10, 8),
+            Margin = new Thickness(0, 0, 0, 7)
+        };
+
+        Grid grid = new();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        Rectangle colorBar = new()
+        {
+            Fill = CreateBrush(calendarEvent.Color),
+            RadiusX = 2,
+            RadiusY = 2,
+            VerticalAlignment = VerticalAlignment.Stretch
+        };
+        Grid.SetColumn(colorBar, 0);
+        grid.Children.Add(colorBar);
+
+        StackPanel content = new();
+        TextBlock title = new()
+        {
+            Text = calendarEvent.Title,
+            FontSize = (double)(Application.Current.TryFindResource("FontSizeBody") ?? 12d),
+            Foreground = Application.Current.TryFindResource("TextPrimaryBrush") as System.Windows.Media.Brush,
+            TextWrapping = TextWrapping.Wrap
+        };
+        content.Children.Add(title);
+
+        TextBlock time = new()
+        {
+            Text = EventListViewModel.FormatEventTime(calendarEvent),
+            FontSize = (double)(Application.Current.TryFindResource("FontSizeSecondary") ?? 11d),
+            Foreground = Application.Current.TryFindResource("TextSecondaryBrush") as System.Windows.Media.Brush,
+            Margin = new Thickness(0, 3, 0, 0)
+        };
+        content.Children.Add(time);
+
+        if (!string.IsNullOrWhiteSpace(calendarEvent.Location))
+        {
+            content.Children.Add(new TextBlock
+            {
+                Text = $"地点：{calendarEvent.Location}",
+                FontSize = (double)(Application.Current.TryFindResource("FontSizeFootnote") ?? 10d),
+                Foreground = Application.Current.TryFindResource("TextSecondaryBrush") as System.Windows.Media.Brush,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 3, 0, 0)
+            });
+        }
+
+        Grid.SetColumn(content, 2);
+        grid.Children.Add(content);
+        border.Child = grid;
+        return border;
+    }
+
+    private static System.Windows.Media.Brush CreateBrush(string color)
+    {
+        try
+        {
+            System.Windows.Media.Brush brush = (System.Windows.Media.Brush)
+                new System.Windows.Media.BrushConverter().ConvertFromString(color)!;
+            brush.Freeze();
+            return brush;
+        }
+        catch
+        {
+            return Application.Current.TryFindResource("TodayAccentBrush") as System.Windows.Media.Brush
+                ?? System.Windows.Media.Brushes.Gray;
+        }
+    }
+
     public void UpdatePosition(Window mainPanel)
     {
-        if (!IsVisible || mainPanel == null) return;
+        if (!IsVisible)
+            return;
 
-        // 主面板的位置和尺寸
-        double mainLeft = mainPanel.Left;
-        double mainTop = mainPanel.Top;
-        double mainHeight = mainPanel.ActualHeight;
-        double mainBottom = mainTop + mainHeight;
-
-        // 详情窗口定位到主面板左侧，间距 8px
-        Left = mainLeft - ActualWidth - 8;
-
-        // 底部对齐主面板底部
-        double targetTop = mainBottom - ActualHeight;
-
-        // 确保不超出屏幕上方
         Rect screen = SystemParameters.WorkArea;
-        if (targetTop < screen.Top) targetTop = screen.Top;
+        double left = mainPanel.Left - ActualWidth - 8;
+        if (left < screen.Left)
+            left = mainPanel.Left + mainPanel.ActualWidth + 8;
+        Left = Math.Min(left, screen.Right - ActualWidth);
 
-        Top = targetTop;
+        double top = mainPanel.Top + (mainPanel.ActualHeight - ActualHeight) / 2;
+        Top = Math.Max(screen.Top, Math.Min(top, screen.Bottom - ActualHeight));
+    }
+
+    private void OnCloseClick(object sender, RoutedEventArgs e)
+    {
+        Hide();
     }
 }

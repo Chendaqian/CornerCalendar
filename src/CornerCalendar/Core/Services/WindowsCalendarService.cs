@@ -1,8 +1,8 @@
 using System.Diagnostics;
 using Windows.ApplicationModel.Appointments;
-using WinCal.Core.Models;
+using CornerCalendar.Core.Models;
 
-namespace WinCal.Core.Services;
+namespace CornerCalendar.Core.Services;
 
 /// <summary>
 /// Windows 系统日历服务实现（带 10 分钟缓存）
@@ -31,7 +31,7 @@ public class WindowsCalendarService : ICalendarService
 
             if (store == null)
             {
-                Debug.WriteLine("WinCal: Calendar store is null (permission denied or unsupported).");
+                Debug.WriteLine("CornerCalendar: Calendar store is null (permission denied or unsupported).");
                 return new List<CalendarEvent>();
             }
 
@@ -55,7 +55,7 @@ public class WindowsCalendarService : ICalendarService
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"WinCal: Failed to get calendar colors: {ex.Message}");
+                Debug.WriteLine($"CornerCalendar: Failed to get calendar colors: {ex.Message}");
             }
 
             var options = new FindAppointmentsOptions
@@ -90,58 +90,13 @@ public class WindowsCalendarService : ICalendarService
         }
         catch (UnauthorizedAccessException)
         {
-            Debug.WriteLine("WinCal: Calendar permission denied.");
+            Debug.WriteLine("CornerCalendar: Calendar permission denied.");
             return new List<CalendarEvent>();
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"WinCal: Calendar API error: {ex.Message}");
+            Debug.WriteLine($"CornerCalendar: Calendar API error: {ex.Message}");
             return new List<CalendarEvent>();
-        }
-    }
-
-    public async Task<bool> IsAvailableAsync()
-    {
-        try
-        {
-            if (Environment.OSVersion.Version < new Version(10, 0, 18362))
-                return false;
-
-            var store = await AppointmentManager.RequestStoreAsync(
-                AppointmentStoreAccessType.AllCalendarsReadOnly);
-            return store != null;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    public async Task<List<CalendarAccountInfo>> GetCalendarAccountsAsync()
-    {
-        try
-        {
-            var store = await AppointmentManager.RequestStoreAsync(
-                AppointmentStoreAccessType.AllCalendarsReadOnly);
-            if (store == null) return new List<CalendarAccountInfo>();
-
-            var calendars = await store.FindAppointmentCalendarsAsync(
-                FindAppointmentCalendarsOptions.IncludeHidden);
-
-            return calendars
-                .Where(c => !c.Hidden)
-                .Select(c => new CalendarAccountInfo(
-                    AccountName: ExtractAccountName(c.DisplayName),
-                    CalendarName: c.DisplayName,
-                    CalendarId: c.Id,
-                    ColorHex: "#0078D4",
-                    IsEnabled: true
-                )).ToList();
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"WinCal: GetCalendarAccounts error: {ex.Message}");
-            return new List<CalendarAccountInfo>();
         }
     }
 
@@ -152,33 +107,4 @@ public class WindowsCalendarService : ICalendarService
         return Task.CompletedTask;
     }
 
-    public void OpenSystemCalendarApp()
-    {
-        try
-        {
-            // 尝试打开 Windows 日历应用
-            Process.Start(new ProcessStartInfo("outlookcal:") { UseShellExecute = true });
-        }
-        catch
-        {
-            try
-            {
-                // 备用：打开 Windows 设置中的日历
-                Process.Start(new ProcessStartInfo("ms-settings:calendar") { UseShellExecute = true });
-            }
-            catch
-            {
-                Debug.WriteLine("WinCal: Cannot open system calendar app.");
-            }
-        }
-    }
-
-    private static string ExtractAccountName(string calendarDisplayName)
-    {
-        // 尝试从显示名称中提取账户名
-        // 例如 "Calendar (user@outlook.com)" → "user@outlook.com"
-        var match = System.Text.RegularExpressions.Regex.Match(
-            calendarDisplayName, @"\(([^)]+)\)");
-        return match.Success ? match.Groups[1].Value : calendarDisplayName;
-    }
 }

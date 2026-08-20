@@ -1,47 +1,71 @@
 <UserControl x:Class="CornerCalendar.Views.Controls.DayCell"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             Width="40" Height="48"
+             Width="52" Height="62"
              Cursor="Hand"
              MouseLeftButtonUp="OnDayClick">
 
     <Grid>
+        <!-- 法定节假日状态：休/班只占一个小角标，不参与主信息堆叠 -->
+        <Border x:Name="HolidayBadge"
+                Width="16" Height="16"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                Margin="0,2,0,0"
+                CornerRadius="8"
+                Panel.ZIndex="3"
+                Visibility="Collapsed">
+            <TextBlock x:Name="HolidayBadgeText"
+                       FontSize="8"
+                       FontWeight="SemiBold"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center" />
+        </Border>
+
         <!-- 今日高亮圆形背景（缩小，不遮挡农历） -->
         <Ellipse x:Name="TodayCircle"
-                 Width="26" Height="26"
+                 Width="34" Height="34"
                  Fill="{DynamicResource TodayAccentBrush}"
                  Visibility="Collapsed"
                  VerticalAlignment="Top"
-                 Margin="0,4,0,0" />
+                 Margin="0,6,0,0" />
 
         <!-- 选中日期圆形边框 -->
         <Ellipse x:Name="SelectedCircle"
-                 Width="26" Height="26"
+                 Width="34" Height="34"
                  Stroke="{DynamicResource TodayAccentBrush}"
                  StrokeThickness="1.5"
                  Fill="Transparent"
                  Visibility="Collapsed"
                  VerticalAlignment="Top"
-                 Margin="0,4,0,0" />
+                 Margin="0,6,0,0" />
 
         <!-- 日期数字 -->
         <TextBlock x:Name="DayText"
                    Text="{Binding DayNumber}"
-                   FontSize="13"
+                   FontSize="{DynamicResource FontSizeItemTitle}"
                    FontWeight="Normal"
                    HorizontalAlignment="Center"
                    VerticalAlignment="Top"
-                   Margin="0,8,0,0"
+                   Margin="0,10,0,0"
                    Foreground="{DynamicResource TextPrimaryBrush}" />
 
-        <!-- 农历文本（可见性由代码后台控制） -->
-        <TextBlock x:Name="LunarText"
-                   FontSize="8"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Bottom"
-                   Margin="0,0,0,9"
-                   Foreground="{DynamicResource TextSecondaryBrush}"
-                   Visibility="Collapsed" />
+        <!-- 单行日历附加信息：节日优先，否则显示农历日（可见性由代码后台控制） -->
+        <StackPanel x:Name="CalendarInfoPanel"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Bottom"
+                    Margin="0,0,0,11"
+                    Panel.ZIndex="2">
+            <TextBlock x:Name="CalendarInfoText"
+                       FontSize="{DynamicResource FontSizeCalendarInfo}"
+                       MaxWidth="48"
+                       TextWrapping="NoWrap"
+                       TextTrimming="CharacterEllipsis"
+                       TextAlignment="Center"
+                       HorizontalAlignment="Center"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       Visibility="Collapsed" />
+        </StackPanel>
 
         <!-- 事件圆点（最多3个，颜色对应事件本身） -->
         <StackPanel x:Name="EventDots"
@@ -49,6 +73,7 @@
                     HorizontalAlignment="Center"
                     VerticalAlignment="Bottom"
                     Margin="0,0,0,2"
+                    Panel.ZIndex="2"
                     Visibility="Collapsed">
             <Ellipse x:Name="Dot1" Width="4" Height="4" Margin="1,0" Visibility="Collapsed" />
             <Ellipse x:Name="Dot2" Width="4" Height="4" Margin="1,0" Visibility="Collapsed" />

@@ -11,24 +11,46 @@
     <AssemblyName>CornerCalendar</AssemblyName>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <ApplicationIcon />
-    <PublishSingleFile>true</PublishSingleFile>
+    <ApplicationIcon>Resources\icon.ico</ApplicationIcon>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- 发布选项（与 scripts/Publish-Artifacts.ps1 及 .github/workflows/release.yml 保持一致）：
+         多文件目录制品（不启用单文件与单文件压缩），默认自包含 win-x64 -->
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <StartupObject>CornerCalendar.App</StartupObject>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <!-- Release（含 publish 制品）不生成 PDB -->
+    <DebugType>none</DebugType>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Hardcodet.NotifyIcon.Wpf" Version="2.0.1" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.0" />
     <PackageReference Include="Ical.Net" Version="4.3.1" />
+    <!-- MIT: https://github.com/6tail/lunar-csharp；提供按日期计算的黄历宜忌。 -->
+    <PackageReference Include="lunar-csharp" Version="1.6.8" />
     <!-- 需要安装 Windows 10 SDK 后取消注释以下行 -->
     <!-- <PackageReference Include="Microsoft.Windows.CsWinRT" Version="2.1.1" /> -->
   </ItemGroup>
 
   <!-- 暂时排除需要 Windows SDK (WinRT) 的文件 -->
+  <ItemGroup>
+    <Compile Remove="Core\Services\WindowsCalendarService.cs" />
+  </ItemGroup>
+
+  <!-- ISSUES #17：单元测试访问 internal 成员 -->
   <ItemGroup>
-    <Compile Remove="Core\Services\WindowsCalendarService.cs" />
+    <InternalsVisibleTo Include="CornerCalendar.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- 嵌入为 WPF 资源，供托盘图标（App.xaml 的 IconSource）读取；EXE 文件图标由 ApplicationIcon 单独引用 -->
+    <Resource Include="Resources\icon.ico" />
   </ItemGroup>
 
 </Project>

@@ -7,12 +7,77 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Views/Themes/FontSizes.xaml" />
                 <ResourceDictionary Source="Views/Themes/Light.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
-            <!-- 托盘图标定义（右键菜单在代码中动态创建） -->
+            <!-- 任务栏时钟和托盘共用的右键菜单，颜色随主题动态更新。 -->
+            <Style TargetType="{x:Type ContextMenu}">
+                <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Padding" Value="4" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            </Style>
+            <Style TargetType="{x:Type MenuItem}">
+                <Setter Property="OverridesDefaultStyle" Value="True" />
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Padding" Value="8,7" />
+                <Setter Property="Margin" Value="0" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type MenuItem}">
+                            <Border x:Name="MenuItemBackground"
+                                    Background="{TemplateBinding Background}"
+                                    Padding="{TemplateBinding Padding}"
+                                    CornerRadius="4">
+                                <Grid MinWidth="150">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="24" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <ContentPresenter Grid.Column="0"
+                                                      Width="24" Height="24"
+                                                      ContentSource="Icon"
+                                                      HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center" />
+                                    <ContentPresenter Grid.Column="1"
+                                                      ContentSource="Header"
+                                                      RecognizesAccessKey="True"
+                                                      TextElement.Foreground="{TemplateBinding Foreground}"
+                                                      VerticalAlignment="Center"
+                                                      Margin="8,0,8,0" />
+                                </Grid>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsHighlighted" Value="True">
+                                    <Setter TargetName="MenuItemBackground"
+                                            Property="Background"
+                                            Value="{DynamicResource HoverBrush}" />
+                                    <Setter Property="Foreground"
+                                            Value="{DynamicResource TextPrimaryBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.5" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <Style TargetType="{x:Type Separator}">
+                <Setter Property="Background" Value="{DynamicResource SeparatorBrush}" />
+                <Setter Property="Height" Value="1" />
+                <Setter Property="Margin" Value="8,4" />
+            </Style>
+
+            <!-- 托盘图标定义（常驻系统托盘；图标为 Resources/icon.ico，右键菜单在代码中动态创建） -->
             <tb:TaskbarIcon x:Key="TrayIcon"
-                            ToolTipText="miniCal"
+                            IconSource="/Resources/icon.ico"
+                            ToolTipText="CornerCalendar"
                             Visibility="Visible" />
         </ResourceDictionary>
     </Application.Resources>

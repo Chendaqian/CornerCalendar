@@ -27,11 +27,6 @@ public partial class EventItem : UserControl
         set => SetValue(EventDataProperty, value);
     }
 
-    /// <summary>
-    /// 悬停详情回调
-    /// </summary>
-    public event Action<CalendarEvent?>? HoverDetailRequested;
-
     private static void OnEventDataChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         EventItem item = (EventItem)d;
@@ -70,22 +65,22 @@ public partial class EventItem : UserControl
         if (isPast)
         {
             // 已结束：灰色文字 + 删除线 + 降低不透明度
-            item.TitleText.Foreground = Application.Current.TryFindResource("TextSecondaryBrush") as System.Windows.Media.Brush
-                ?? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x76, 0x76, 0x76));
+            item.TitleText.SetResourceReference(
+                TextBlock.ForegroundProperty, "TextSecondaryBrush");
             item.TitleText.TextDecorations = TextDecorations.Strikethrough;
-            item.TimeText.Foreground = Application.Current.TryFindResource("TextSecondaryBrush") as System.Windows.Media.Brush
-                ?? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x76, 0x76, 0x76));
+            item.TimeText.SetResourceReference(
+                TextBlock.ForegroundProperty, "TextSecondaryBrush");
             item.TimeText.TextDecorations = TextDecorations.Strikethrough;
             item.Opacity = 0.5;
         }
         else
         {
             // 未结束：正常样式
-            item.TitleText.Foreground = Application.Current.TryFindResource("TextPrimaryBrush") as System.Windows.Media.Brush
-                ?? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x1A, 0x1A, 0x1A));
+            item.TitleText.SetResourceReference(
+                TextBlock.ForegroundProperty, "TextPrimaryBrush");
             item.TitleText.TextDecorations = null;
-            item.TimeText.Foreground = Application.Current.TryFindResource("TextSecondaryBrush") as System.Windows.Media.Brush
-                ?? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x76, 0x76, 0x76));
+            item.TimeText.SetResourceReference(
+                TextBlock.ForegroundProperty, "TextSecondaryBrush");
             item.TimeText.TextDecorations = null;
             item.Opacity = 1.0;
         }
@@ -94,14 +89,13 @@ public partial class EventItem : UserControl
     protected override void OnMouseEnter(MouseEventArgs e)
     {
         base.OnMouseEnter(e);
-        HoverBorder.Background = Application.Current.TryFindResource("HoverBrush") as System.Windows.Media.Brush;
-        HoverDetailRequested?.Invoke(EventData);
+        HoverBorder.SetResourceReference(
+            Border.BackgroundProperty, "HoverBrush");
     }
 
     protected override void OnMouseLeave(MouseEventArgs e)
     {
         base.OnMouseLeave(e);
-        HoverBorder.Background = null;
-        HoverDetailRequested?.Invoke(null);
+        HoverBorder.ClearValue(Border.BackgroundProperty);
     }
 }

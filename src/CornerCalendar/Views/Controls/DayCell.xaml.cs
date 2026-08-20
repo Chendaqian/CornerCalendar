@@ -56,19 +56,53 @@ public partial class DayCell : UserControl
 
         // 今日高亮
         cell.TodayCircle.Visibility = day.IsToday ? Visibility.Visible : Visibility.Collapsed;
-        cell.DayText.Foreground = day.IsToday
-            ? FindResource(cell, "TextOnAccentBrush") as Brush
-            : day.IsCurrentMonth
-                ? FindResource(cell, "TextPrimaryBrush") as Brush
-                : FindResource(cell, "TextDisabledBrush") as Brush;
+        SetDayTextBrush(cell, day, isSelected: false);
 
         cell.DayText.FontWeight = day.IsToday ? FontWeights.Bold : FontWeights.Normal;
 
-        // 农历
-        cell.LunarText.Text = day.LunarDate;
-        cell.LunarText.Visibility = string.IsNullOrEmpty(day.LunarDate)
+        cell.HolidayBadge.Visibility = Visibility.Collapsed;
+        if (day.IsWorkday)
+        {
+            cell.HolidayBadgeText.Text = "班";
+            cell.HolidayBadge.SetResourceReference(
+                Border.BackgroundProperty, "WorkdayBadgeBrush");
+            cell.HolidayBadgeText.SetResourceReference(
+                TextBlock.ForegroundProperty, "WorkdayBadgeTextBrush");
+            cell.HolidayBadge.Visibility = Visibility.Visible;
+        }
+        else if (!string.IsNullOrEmpty(day.LegalHoliday))
+        {
+            cell.HolidayBadgeText.Text = "休";
+            cell.HolidayBadge.SetResourceReference(
+                Border.BackgroundProperty, "RestDayBadgeBrush");
+            cell.HolidayBadgeText.SetResourceReference(
+                TextBlock.ForegroundProperty, "RestDayBadgeTextBrush");
+            cell.HolidayBadge.Visibility = Visibility.Visible;
+        }
+
+        // 每天只显示一个附加标签：法定节假日/补班 > 传统节日 > 节气 > 农历日。
+        // 没有节日时只显示“初几”等农历日名，避免农历月和节日叠加挤在同一格。
+        string infoText = GetCalendarInfoText(day);
+
+        cell.CalendarInfoText.Text = infoText;
+        cell.CalendarInfoText.Visibility = string.IsNullOrEmpty(infoText)
             ? Visibility.Collapsed
             : Visibility.Visible;
+        cell.CalendarInfoText.SetResourceReference(
+            TextBlock.ForegroundProperty, "TodayAccentBrush");
+
+        List<string> tooltipLines = new() { day.Date.ToString("yyyy年M月d日") };
+        if (!string.IsNullOrEmpty(day.LunarDate))
+            tooltipLines.Add($"农历 {day.LunarDate}");
+        if (!string.IsNullOrEmpty(day.SolarTerm))
+            tooltipLines.Add($"节气 {day.SolarTerm}");
+        if (!string.IsNullOrEmpty(day.LunarFestival))
+            tooltipLines.Add($"节日 {day.LunarFestival}");
+        if (!string.IsNullOrEmpty(day.LegalHoliday))
+            tooltipLines.Add($"法定节假日 {day.LegalHoliday}");
+        if (day.IsWorkday)
+            tooltipLines.Add("调休补班");
+        cell.ToolTip = string.Join(Environment.NewLine, tooltipLines);
 
         // 事件圆点 - 最多3个，按日历去重显示不同颜色
         if (day.HasEvents && day.Events.Count > 0)
@@ -96,7 +130,8 @@ public partial class DayCell : UserControl
                     }
                     catch
                     {
-                        dots[i].Fill = FindResource(cell, "EventDotBrush") as Brush;
+                        dots[i].SetResourceReference(
+                            System.Windows.Shapes.Shape.FillProperty, "EventDotBrush");
                     }
                 }
                 else
@@ -123,11 +158,7 @@ public partial class DayCell : UserControl
         if (cell.DayData is { IsToday: false })
         {
             cell.SelectedCircle.Visibility = isSelected ? Visibility.Visible : Visibility.Collapsed;
-            cell.DayText.Foreground = isSelected
-                ? FindResource(cell, "TodayAccentBrush") as Brush
-                : cell.DayData is { IsCurrentMonth: true }
-                    ? FindResource(cell, "TextPrimaryBrush") as Brush
-                    : FindResource(cell, "TextDisabledBrush") as Brush;
+            SetDayTextBrush(cell, cell.DayData, isSelected);
         }
     }
 
@@ -136,8 +167,38 @@ public partial class DayCell : UserControl
         DayClicked?.Invoke(this, new RoutedEventArgs { Source = this });
     }
 
-    private static object? FindResource(DependencyObject obj, string key)
+    private static void SetDayTextBrush(DayCell cell, CalendarDay day, bool isSelected)
     {
-        return Application.Current.TryFindResource(key);
+        string resourceKey = day.IsToday
+            ? "TextOnAccentBrush"
+            : isSelected
+                ? "TodayAccentBrush"
+                : day.IsCurrentMonth
+                    ? day.Date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday
+                        ? "WeekendTextBrush"
+                        : "TextPrimaryBrush"
+                    : "TextDisabledBrush";
+
+        // 必须使用动态资源，否则切换主题后代码设置的旧画刷会继续覆盖 XAML 主题。
+        cell.DayText.SetResourceReference(TextBlock.ForegroundProperty, resourceKey);
+    }
+
+    private static string GetCalendarInfoText(CalendarDay day)
+    {
+        // 调休补班只通过右上角“班”角标表达，主标签仍显示当天的节日或农历日。
+        if (!day.IsWorkday && !string.IsNullOrWhiteSpace(day.LegalHoliday))
+            return day.LegalHoliday;
+
+        if (!string.IsNullOrWhiteSpace(day.LunarFestival))
+            return day.LunarFestival;
+
+        if (!string.IsNullOrWhiteSpace(day.SolarTerm))
+            return day.SolarTerm;
+
+        if (string.IsNullOrWhiteSpace(day.LunarDate))
+            return string.Empty;
+
+        string[] lunarParts = day.LunarDate.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return lunarParts.Length > 0 ? lunarParts[^1] : day.LunarDate;
     }
 }

@@ -1,114 +1,100 @@
-# AGENTS.md — CornerCalendar（WinCal / miniCal）
+# CornerCalendar 项目代理指南
 
-> 本文件面向 AI 编码代理与新贡献者，描述本仓库的项目结构、构建方式、架构要点与已知坑。
-> 全局编码规范（Shell、异常、异步、行为准则）见用户级 AGENTS.md，本文件只写项目专属内容。
+本文件描述 CornerCalendar 仓库的实际结构、构建流程和修改边界。所有回复使用中文，并在每次回复开头先说“喵”。更高优先级的系统或用户指令优先于本文件。
 
-## 项目简介
+## 项目概览
 
-Windows 11 任务栏日历小工具（产品名 WinCal / WinminiCal，托盘文案用 miniCal，仓库与程序集名为 CornerCalendar）。
-常驻系统托盘，点击任务栏时钟区域弹出月历面板，支持农历、事件列表、事件详情、ICS 订阅，并可拦截替换 Windows 原生日历弹窗。灵感来自 macOS 的 Itsycal。
+CornerCalendar 是 Windows 10/11 上的任务栏日历工具：应用常驻系统托盘，覆盖任务栏时钟区域，点击后从底部弹出月历面板；面板提供农历、中国大陆法定节假日和调休、二十四节气、ICS 日程、天气摘要以及日期详情窗口。
 
 ## 技术栈
 
 | 技术 | 用途 |
-|------|------|
-| C# 12 + .NET 8（net8.0-windows） | 语言与运行时 |
-| WPF | UI 框架 |
+| --- | --- |
+| C# 12 / .NET 8 | 应用运行时，目标框架为 `net8.0-windows` |
+| WPF | 桌面 UI、动画和资源字典 |
 | CommunityToolkit.Mvvm 8.3.0 | MVVM 基础设施 |
 | Hardcodet.NotifyIcon.Wpf 2.0.1 | 系统托盘图标 |
-| Ical.Net 4.3.1 | ICS 日历解析 |
-| SetWinEventHook（Win32 P/Invoke） | 系统日历窗口拦截 |
+| Ical.Net 4.3.1 | ICS 订阅解析 |
+| SetWinEventHook / Win32 | 监听和拦截系统日历窗口 |
+| Open-Meteo / 公网 IP 定位服务 | 天气与城市定位数据 |
 
-## 构建与验证
+## 仓库结构
+
+```text
+src/
+├── CornerCalendar.sln
+├── CornerCalendar.Tests/                 # xUnit 回归测试
+└── CornerCalendar/
+    ├── App.xaml(.cs)                     # 组合根、托盘、任务栏时钟和生命周期
+    ├── Core/
+    │   ├── Models/                       # CalendarDay、CalendarEvent、天气和中国日历模型
+    │   ├── Services/                     # 设置、ICS、中国日历、天气和聚合服务
+    │   └── Helpers/                      # Win32、主题、农历、自启动、日志和图标帮助类
+    ├── ViewModels/                       # CalendarViewModel、EventListViewModel
+    └── Views/
+        ├── PopupWindow.xaml(.cs)         # 主月历面板、天气切换和动画
+        ├── SettingsWindow.xaml(.cs)      # 分类设置窗口，显示在任务栏
+        ├── EventDetailWindow.xaml(.cs)   # 点击日期打开的日详情和日程窗口
+        ├── TaskbarClockWindow.xaml(.cs)  # 覆盖任务栏时间的窗口
+        ├── Controls/                     # 月历、日期格、事件控件
+        └── Themes/                       # Light、Dark、FontSizes 资源字典
+```
+
+## 常用命令
+
+所有命令使用 PowerShell 7，脚本首部应设置 `$ErrorActionPreference = 'Stop'`。
 
 ```powershell
-# 开发构建（已验证可用）
 dotnet build src\CornerCalendar.sln
+dotnet test src\CornerCalendar.sln
+pwsh scripts\Publish-Artifacts.ps1
+```
 
-# 运行调试产物
+开发运行：
+
+```powershell
 .\src\CornerCalendar\bin\Debug\net8.0-windows\win-x64\CornerCalendar.exe
-
-# 发布单文件（Release / win-x64 / self-contained，csproj 已内置发布参数）
-dotnet publish src\CornerCalendar\CornerCalendar.csproj -c Release -o dist
 ```
 
-- 前置：.NET 8 SDK；目标平台仅 Windows（WPF + win-x64）。
-- 仓库无单元测试项目；验证方式以「构建 0 错误 0 警告 + 手工运行验证」为准。
-- ⚠️ 根目录 `build.bat` / `build_nopause.bat` / `publish.bat` 是重命名前的遗留脚本：
-  `build.bat` 在仓库根目录执行 `dotnet build`（根目录无工程文件，会失败），
-  `publish.bat` 仍引用旧工程名 `WinCal.csproj`（已不存在）。**请一律使用上面的 dotnet CLI 命令**，不要修复 bat 脚本除非用户明确要求。`scripts/` 目前是空目录。
+交付前至少确认：构建 0 错误 0 警告、测试通过；涉及窗口行为时还要在 Windows 上手工检查托盘、任务栏时钟、主面板、设置窗口和系统日历恢复。
 
-## 项目结构与代码定位
+## 版本与发布
 
-```
-src/
-├── CornerCalendar.sln                    # 解决方案（仅一个 WPF 工程）
-└── CornerCalendar/
-    ├── App.xaml(.cs)                     # 组合根：托盘图标、弹窗/设置窗口生命周期、拦截器启动、全局异常
-    ├── Core/
-    │   ├── Models/                       # CalendarEvent / CalendarDay / CalendarAccountInfo
-    │   ├── Services/                     # 日历数据服务（见下）+ AppSettings 设置持久化
-    │   └── Helpers/                      # Win32 与工具类（见下）
-    ├── ViewModels/
-    │   ├── CalendarViewModel.cs          # 月历主逻辑（月份切换、日期格子、事件点标记）~485 行
-    │   └── EventListViewModel.cs         # 近期事件列表逻辑
-    └── Views/
-        ├── PopupWindow.xaml(.cs)         # 弹出日历主窗口（圆角、失焦关闭）
-        ├── SettingsWindow.xaml(.cs)      # 设置窗口（独立顶层、单例）
-        ├── EventDetailWindow.xaml(.cs)   # 事件详情浮层
-        ├── Controls/                     # MonthCalendar / DayCell / EventItem / EventDetailPopup
-        └── Themes/                       # Light.xaml / Dark.xaml 资源字典
-```
+- `src/CornerCalendar/CornerCalendar.csproj` 的 `<Version>` 控制程序集版本；发布工作流构建 `CornerCalendar.dll` 后从 `AssemblyName.Version` 读取实际版本。
+- `.github/workflows/release.yml` 是实际发布工作流，tag 只作触发器。
+- tag 可以是 `v1.0.1` 或 `1.0.1`，去掉可选的 `v` 后必须与构建出的程序集版本完全一致。
+- 发布工作流调用 `scripts/Publish-Artifacts.ps1`，输出 self-contained 和 framework 两种 win-x64 多文件制品。
+- 修改版本的正确顺序：改 `<Version>` → 提交并推送 → 执行 `pwsh scripts\Publish-Release.ps1` 自动创建并推送匹配 tag。
+- `scripts\Publish-Release.ps1` 从实际构建出的 `CornerCalendar.dll` 读取程序集版本，不接受手工传入版本；tag 推送后由 `release.yml` 自动生成制品和 Release 描述。
 
-### Core/Services（日历数据源）
+## 关键行为约定
 
-| 文件 | 职责 |
-|------|------|
-| `ICalendarService.cs` | 日历服务统一接口 |
-| `MockCalendarService.cs` | 模拟数据（调试用） |
-| `IcsCalendarService.cs` | 远程 .ics 订阅（Ical.Net 解析，定时刷新） |
-| `WindowsCalendarService.cs` | 系统邮箱日历（**已 Compile Remove，未参与编译**，见下） |
-| `EmptyCalendarService.cs` | 无数据源时的默认空实现 |
-| `AggregateCalendarService.cs` | 多数据源聚合 |
-| `AppSettings.cs` | 设置持久化（System.Text.Json） |
+1. `App.xaml.cs` 是组合根，负责托盘图标、任务栏时钟覆盖层、弹窗/设置窗口生命周期、系统日历拦截器和全局异常日志。
+2. `AppSettings.Current` 是设置单例，文件位置为 `%LOCALAPPDATA%\CornerCalendar\settings.json`。保存使用临时文件和原子替换，不要在新代码中引入另一套设置实例或路径。
+3. 中国日历由 `ChinaCalendarService` 读取远程 ICS，天气由 `WeatherService` 读取远程 API；不要为了展示结果新增本地硬编码的节日或天气数据。
+4. `SettingsWindow` 通过左侧分类导航组织设置，修改新设置时同步处理加载、保存和恢复默认值。
+5. 点击日期格由 `MonthCalendar.DateClicked` 通知主面板，`EventDetailWindow` 显示该日期的日历信息和当天日程。不要重新引入基于鼠标悬浮自动弹出详情的行为。
+6. 所有颜色和字号优先使用 `Themes/Light.xaml`、`Themes/Dark.xaml`、`Themes/FontSizes.xaml` 的资源键；不要在 XAML 中新增无必要的硬编码颜色或字号。
+7. 系统日历拦截器隐藏窗口时必须保留恢复路径；修改拦截逻辑后必须验证应用退出后系统原生日历仍能打开。
 
-### Core/Helpers
+## 数据源限制
 
-| 文件 | 职责 |
-|------|------|
-| `SystemCalendarInterceptor.cs` | SetWinEventHook 监听 ShellExperienceHost，拦截替换系统日历弹窗 |
-| `WindowPositionHelper.cs` | 面板贴近任务栏右下角定位、多显示器工作区计算 |
-| `ThemeHelper.cs` | 应用主题 + 监听注册表 `AppsUseLightTheme` 跟随系统 |
-| `TrayIconGenerator.cs` | 动态绘制带当日日期数字的托盘图标 |
-| `LunarCalendarHelper.cs` | 农历转换 |
-| `StartupHelper.cs` | 开机自启动（注册表） |
+`WindowsCalendarService.cs` 因 Windows SDK / CsWinRT 依赖在 csproj 中被 `Compile Remove` 排除。除非用户明确要求并提供相应 SDK 环境，否则不要取消该排除项，也不要把系统数据源伪装成模拟日程。
 
-## 关键架构机制
+## 编码与异常约定
 
-1. **组合根在 `App.xaml.cs`**：OnStartup 中创建托盘图标（左键 `TogglePopup`、右键菜单「设置/退出」）、启动 `SystemCalendarInterceptor`（回调 `ShowPopup`）、加载 `AppSettings` 并应用主题。设置窗口经 `App.ShowSettings()` 单例打开。
-2. **拦截器行为**：检测到系统日历/通知中心弹出 → 隐藏原窗口并弹出本应用面板；500ms 防抖冷却；退出时恢复被隐藏的系统窗口；面板失焦自动关闭。
-3. **设置持久化路径以代码为准**：实际写入 `%LOCALAPPDATA%\miniCal\settings.json`（`AppSettings.SettingsDir`）。README/PROGRESS 中写的 WinCal、代码注释写的 CornerCalendar 均为过时描述，修改时不要随手「统一」。
-4. **主题**：所有颜色走 `Themes/Light.xaml`、`Dark.xaml` 资源字典，XAML 中只引用 DynamicResource 键名，不写死色值。
-5. **MVVM**：ViewModel 用 CommunityToolkit.Mvvm（ObservableObject / RelayCommand）；跨线程更新 UI 必须经 Dispatcher。
+- 启用 nullable 和 implicit usings；新增代码遵循可空引用标注。
+- 异步方法返回 `Task` 或 `Task<T>`，禁止新增 `async void`；WPF 事件处理器也应委托给返回 `Task` 的方法。
+- 重新抛出异常使用 `throw`，禁止 `throw ex`。
+- 实现 `IDisposable` 的对象使用 `using` 或 `try/finally` 释放。
+- 不要在循环中执行数据库或网络 IO；远程数据请求应批量或单次完成。
+- Win32 P/Invoke 集中放在 `Core/Helpers`，不在视图中散落 native 调用。
+- 修改保持精确，避免顺手重构无关代码；不覆盖或回退用户已有的未提交修改。
 
-## 编码约定（本项目）
+## 已知注意事项
 
-- `Nullable` 与 `ImplicitUsings` 均启用；新代码遵循可空引用类型标注。
-- WPF 窗口/控件代码：UI 交互逻辑放 code-behind，业务状态放 ViewModel，不要互相穿透。
-- Win32 P/Invoke 集中在 `Core/Helpers`，不要散落到 Views。
-- 异步规则（继承全局）：禁止 `async void`；`throw` 不 `throw ex`；`IDisposable` 用 try/finally 或 using；禁止在循环中做网络 IO（ICS 拉取必须批量/单次完成）。
-- 错误处理现状：`App` 内有全局 DispatcherUnhandledException 兜底；`ShowSettings` 异常时写桌面日志文件。新增代码保持同等克制，不要引入日志框架。
-
-## 已知坑与注意事项
-
-1. **`WindowsCalendarService.cs` 被 `<Compile Remove>` 排除**：需要 Windows 10 SDK + CsWinRT 才能编译。csproj 中相关行（UseWinRT、CsWinRT 包引用）均为注释状态。不要取消注释或把该文件加回编译，除非用户明确要求接入系统日历 API。
-2. **命名混乱是历史遗留**：仓库名 CornerCalendar、产品名 WinCal/WinminiCal、托盘与目录用 miniCal、文档混用。遇到不一致保持现状，不做批量重命名。
-3. **`*.ics` 在 .gitignore 中**（测试数据），不要把样例 ics 文件提交进仓库。
-4. **`bin/`、`obj/` 位于 `src/CornerCalendar/` 下**且已 gitignore；`dist/`、`publish/` 为发布产物目录，同样勿提交。
-5. 构建必须通过 `src/CornerCalendar.sln`（或 csproj 全路径）；仓库根目录没有工程文件。
-
-## 相关文档
-
-- `README.md` — 功能特性与用户向说明（部分路径描述已过时，以代码为准）
-- `PROGRESS.md` — 开发进度记录（MVP + 设置界面已完成）
-- `WinCal_产品与开发方案.md` — 产品定位、模块设计、UI 规范、阶段规划（750 行，改动前先查阅对应章节）
+- `bin/`、`obj/` 和 `release/` 是生成目录，不应提交。
+- `*.ics` 被 gitignore，测试不要把真实订阅样例提交进仓库。
+- 日历缓存、设置和错误日志都位于 `%LOCALAPPDATA%\CornerCalendar\`。
+- 任务栏覆盖窗口会隐藏系统时间并在退出时恢复；任何改变窗口显示状态的代码都必须覆盖异常和退出路径。
+- 许可证文件是 `LICENSE.txt`，文档为 `README.md` 和 `README_zh.md`。

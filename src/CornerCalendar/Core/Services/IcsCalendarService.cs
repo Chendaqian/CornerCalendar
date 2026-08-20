@@ -1,22 +1,20 @@
+using Ical.Net;
+using Ical.Net.DataTypes;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
-using Ical.Net;
-using Ical.Net.CalendarComponents;
-using Ical.Net.DataTypes;
-using IcalEvent = Ical.Net.CalendarComponents.CalendarEvent;
 using CornerCalendarEvent = CornerCalendar.Core.Models.CalendarEvent;
-using CornerCalendar.Core.Models;
+using IcalEvent = Ical.Net.CalendarComponents.CalendarEvent;
 
 namespace CornerCalendar.Core.Services;
 
 /// <summary>
 /// 远程 ICS 日历订阅服务 —— 从指定 URL 下载 .ics 文件并解析事件
 /// </summary>
-public class IcsCalendarService : ICalendarService
+public class IcsCalendarService : ICalendarService, IDisposable
 {
     private readonly string _icsUrl;
     private readonly int _refreshMinutes;
@@ -25,10 +23,11 @@ public class IcsCalendarService : ICalendarService
 
     // 缓存原始 Calendar 对象（包含 RRULE 定义），不缓存展开后的事件
     private Calendar? _cachedCalendar;
+
     private DateTime _lastRefreshTime = DateTime.MinValue;
     private readonly HttpClient _httpClient;
     private readonly string _diskCachePath; // 磁盘缓存文件路径
-    private bool _isBackgroundRefreshing;   // 防止重复后台刷新
+    private readonly SemaphoreSlim _refreshLock = new(1, 1); // 保证同一时刻只有一个网络刷新在途
 
     public IcsCalendarService(string icsUrl, int refreshMinutes = 30, string calendarName = "ICS 订阅", string color = "#0078D4")
     {
@@ -46,7 +45,7 @@ public class IcsCalendarService : ICalendarService
             Timeout = TimeSpan.FromSeconds(15)
         };
         // 模拟浏览器 User-Agent，避免某些服务器拒绝请求
-        _httpClient.DefaultRequestHeaders.Add("User-Agent", "miniCal/1.0 (Calendar Client)");
+        _httpClient.DefaultRequestHeaders.Add("User-Agent", "CornerCalendar/1.0 (Calendar Client)");
 
         // 磁盘缓存路径：%LOCALAPPDATA%/CornerCalendar/cache/{url_hash}.ics
         string cacheDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CornerCalendar", "cache");
@@ -80,69 +79,17 @@ public class IcsCalendarService : ICalendarService
             }
         }
 
-        // 去重：同日起始的事件，如果标题前缀相同（如"端午节"和"端午节（休）"），只保留跨度最长的版本
-        List<CornerCalendarEvent> deduped = new List<CornerCalendarEvent>();
-        IEnumerable<IGrouping<DateTime, CornerCalendarEvent>> groups = events.GroupBy(e => e.StartTime.Date);
-
-        foreach (IGrouping<DateTime, CornerCalendarEvent> group in groups)
-        {
-            // 按标题前缀分组：取第一个'（'之前的部分作为前缀
-            IEnumerable<IGrouping<string, CornerCalendarEvent>> prefixGroups = group.ToList()
-                .GroupBy(e => e.Title.Split('（', '(')[0]);
-
-            foreach (IGrouping<string, CornerCalendarEvent> pg in prefixGroups)
-            {
-                // 保留跨度最长的（EndTime 最晚的）
-                CornerCalendarEvent best = pg.OrderByDescending(e => e.EndTime).First();
-                deduped.Add(best);
-            }
-        }
-
-        return deduped
+        // 保守去重：仅合并「全天 + 同日 + 标题包含关系」的事件，详见 DeduplicateAllDayEvents 注释
+        return DeduplicateAllDayEvents(events)
             .OrderBy(e => e.StartTime)
             .ToList();
-    }
-
-    public async Task<bool> IsAvailableAsync()
-    {
-        if (string.IsNullOrWhiteSpace(_icsUrl))
-            return false;
-
-        try
-        {
-            await EnsureCacheAsync();
-            return _cachedCalendar != null;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    public async Task<List<CalendarAccountInfo>> GetCalendarAccountsAsync()
-    {
-        bool available = await IsAvailableAsync();
-        return new List<CalendarAccountInfo>
-        {
-            new("ICS 订阅", _calendarName, "ics-subscription", _color, available)
-        };
     }
 
     public async Task ForceRefreshAsync()
     {
         // 强制刷新：跳过所有缓存，直接从网络下载
-        _isBackgroundRefreshing = false; // 取消可能正在进行的后台刷新
-        await RefreshFromNetworkAsync();
-    }
-
-    public void OpenSystemCalendarApp()
-    {
-        // ICS 订阅没有对应的系统日历应用，尝试打开 URL
-        try
-        {
-            Process.Start(new ProcessStartInfo(_icsUrl) { UseShellExecute = true });
-        }
-        catch { }
+        // （信号量保证与在途后台刷新串行执行，避免并发写同一缓存文件）
+        await RefreshFromNetworkAsync(force: true);
     }
 
     /// <summary>
@@ -162,9 +109,10 @@ public class IcsCalendarService : ICalendarService
         }
 
         // 3. 已有数据（内存或磁盘），检查是否需要后台刷新
+        // （_refreshLock 保证同一时刻只有一个刷新在途；并发调用进入锁后会命中新鲜度复查而立即跳过）
         if (_cachedCalendar != null)
         {
-            if ((DateTime.Now - _lastRefreshTime).TotalMinutes >= _refreshMinutes && !_isBackgroundRefreshing)
+            if ((DateTime.Now - _lastRefreshTime).TotalMinutes >= _refreshMinutes)
             {
                 _ = RefreshFromNetworkAsync(); // 后台刷新，不阻塞
             }
@@ -204,13 +152,19 @@ public class IcsCalendarService : ICalendarService
     }
 
     /// <summary>
-    /// 从网络下载并更新缓存（内存 + 磁盘）
+    /// 从网络下载并更新缓存（内存 + 磁盘）。
+    /// 信号量保证同一时刻只有一个刷新在途，避免并发下载写坏同一磁盘缓存文件。
     /// </summary>
-    private async Task RefreshFromNetworkAsync()
+    private async Task RefreshFromNetworkAsync(bool force = false)
     {
-        _isBackgroundRefreshing = true;
+        await _refreshLock.WaitAsync();
         try
         {
+            // 拿到锁后复查：若刚有别的刷新完成则直接跳过（强制刷新除外）
+            if (!force && _cachedCalendar != null &&
+                (DateTime.Now - _lastRefreshTime).TotalMinutes < _refreshMinutes)
+                return;
+
             string icsContent = await DownloadIcsAsync();
             Calendar? calendar = ParseIcsContent(icsContent);
 
@@ -242,7 +196,7 @@ public class IcsCalendarService : ICalendarService
         }
         finally
         {
-            _isBackgroundRefreshing = false;
+            _refreshLock.Release();
         }
     }
 
@@ -328,5 +282,71 @@ public class IcsCalendarService : ICalendarService
             Location: location,
             Description: description
         );
+    }
+
+    /// <summary>
+    /// 节假日类全天事件的保守去重。
+    /// 旧实现按「标题第一个括号前的前缀」分组合并，会误吞"评审会（设计）"/"评审会（开发）"这类正常事件。
+    /// 新规则仅在同时满足以下条件时合并：
+    ///   1. 两条都是全天事件（为"端午节"/"端午节（休）"这类节假日订阅源设计，定时事件永不合并）；
+    ///   2. 同一天且一个标题完整包含另一个标题。
+    /// 合并时保留跨度更长的一条；跨度相同保留标题更短的（显示更干净）。
+    /// internal static 以便单元测试。
+    /// </summary>
+    internal static List<CornerCalendarEvent> DeduplicateAllDayEvents(List<CornerCalendarEvent> events)
+    {
+        List<CornerCalendarEvent> result = new List<CornerCalendarEvent>();
+
+        foreach (IGrouping<DateTime, CornerCalendarEvent> dayGroup in events.GroupBy(e => e.StartTime.Date))
+        {
+            List<CornerCalendarEvent> kept = new List<CornerCalendarEvent>();
+
+            foreach (CornerCalendarEvent evt in dayGroup)
+            {
+                // 定时事件永不参与合并
+                if (!evt.IsAllDay)
+                {
+                    kept.Add(evt);
+                    continue;
+                }
+
+                CornerCalendarEvent? duplicate = kept.FirstOrDefault(k =>
+                    k.IsAllDay && TitlesIndicateSameEvent(k.Title, evt.Title));
+
+                if (duplicate == null)
+                {
+                    kept.Add(evt);
+                    continue;
+                }
+
+                // 保留跨度更长的；跨度相同保留标题更短的
+                bool replace = evt.EndTime > duplicate.EndTime ||
+                    (evt.EndTime == duplicate.EndTime && evt.Title.Length < duplicate.Title.Length);
+                if (replace)
+                {
+                    kept.Remove(duplicate);
+                    kept.Add(evt);
+                }
+            }
+
+            result.AddRange(kept);
+        }
+
+        return result;
+    }
+
+    private static bool TitlesIndicateSameEvent(string a, string b)
+    {
+        // 过短的标题包含关系匹配面过大（如单字），不视为同一事件
+        if (Math.Min(a.Length, b.Length) < 2)
+            return false;
+
+        return a.Contains(b) || b.Contains(a);
+    }
+
+    public void Dispose()
+    {
+        _httpClient.Dispose();
+        _refreshLock.Dispose();
     }
 }

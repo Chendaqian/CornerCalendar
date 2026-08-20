@@ -1,0 +1,32 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:s="clr-namespace:System;assembly=System.Runtime">
+
+    <!-- ISSUES #16：字号收敛为资源键（不再在 XAML 中硬编码）。
+         代码侧 PopupWindow.ApplyFontSizeOffset 会按字号偏移档位整体覆写这些键，
+         基准值与 PopupWindow.FontSizeResources 保持一致。 -->
+    <s:Double x:Key="FontSizeHeading">18</s:Double>
+    <!-- 月份导航箭头 -->
+    <s:Double x:Key="FontSizePreviewLarge">17</s:Double>
+    <!-- 设置页字号预览（大 A） -->
+    <s:Double x:Key="FontSizeWindowTitle">15</s:Double>
+    <!-- 设置窗口标题 -->
+    <s:Double x:Key="FontSizeSubtitle">14</s:Double>
+    <!-- 月份标题 / 详情标题 -->
+    <s:Double x:Key="FontSizeItemTitle">13</s:Double>
+    <!-- 日期数字 / 设置分组标题 -->
+    <s:Double x:Key="FontSizeBody">12</s:Double>
+    <!-- 事件标题 / 详情正文 -->
+    <s:Double x:Key="FontSizeSecondary">11</s:Double>
+    <!-- 次级文本（星期头、时间等） -->
+    <s:Double x:Key="FontSizeFootnote">10</s:Double>
+    <!-- 脚注链接 -->
+    <s:Double x:Key="FontSizeCaption">9</s:Double>
+    <!-- End 标记 -->
+    <s:Double x:Key="FontSizeLunar">8</s:Double>
+    <!-- 农历 -->
+    <s:Double x:Key="FontSizeCalendarInfo">7.5</s:Double>
+    <!-- 节气/法定节假日 -->
+    <s:Double x:Key="FontSizeTaskbarClock">11</s:Double>
+    <!-- 任务栏覆盖时间 -->
+</ResourceDictionary>

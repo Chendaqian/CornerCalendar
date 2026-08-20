@@ -12,11 +12,16 @@ public static class ThemeHelper
     private static readonly string LightThemeUri = "Views/Themes/Light.xaml";
     private static readonly string DarkThemeUri = "Views/Themes/Dark.xaml";
 
+    private static ThemeMode _currentMode = ThemeMode.FollowSystem;
+    private static bool _systemTracking;
+
     /// <summary>
     /// 根据设置应用主题
     /// </summary>
     public static void ApplyTheme(ThemeMode mode)
     {
+        _currentMode = mode;
+
         bool isDark = mode switch
         {
             ThemeMode.Dark => true,
@@ -25,6 +30,48 @@ public static class ThemeHelper
         };
 
         SetTheme(isDark);
+    }
+
+    /// <summary>
+    /// 开始监听系统主题变化（ISSUES #2）。
+    /// 仅「跟随系统」模式下生效；系统切换深浅色后自动重新应用主题。
+    /// </summary>
+    public static void StartSystemThemeTracking()
+    {
+        if (_systemTracking) return;
+        _systemTracking = true;
+        SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
+    }
+
+    /// <summary>
+    /// 停止监听（应用退出时调用，避免悬挂订阅）
+    /// </summary>
+    public static void StopSystemThemeTracking()
+    {
+        if (!_systemTracking) return;
+        _systemTracking = false;
+        SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+    }
+
+    private static void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
+    {
+        try
+        {
+            // 回调在系统事件线程，需切到 UI 线程操作资源字典
+            Application? app = Application.Current;
+            if (app == null) return;
+
+            app.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                // 只有「跟随系统」模式才响应；深浅色模式是用户显式选择，不跟随
+                if (_currentMode == ThemeMode.FollowSystem)
+                    SetTheme(IsSystemDarkMode());
+            }));
+        }
+        catch
+        {
+            // 应用退出过程中的竞态等：主题跟随失败绝不影响主流程
+        }
     }
 
     /// <summary>
