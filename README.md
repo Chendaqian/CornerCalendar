@@ -13,7 +13,7 @@
 **English | [简体中文](README_zh.md)**
 
 <div align="center">
-  ![icon](https://raw.githubusercontent.com/Chendaqian/CornerCalendar/refs/heads/master/src/CornerCalendar/Resources/icon.png)
+  ![icon](https://raw.githubusercontent.com/Chendaqian/CornerCalendar/refs/heads/master/src/CornerCalendar/Resources/mainInfo.png)
 </div>
 
 CornerCalendar is a Windows calendar utility that replaces the taskbar calendar flyout with a compact monthly calendar. It stays in the system tray, opens from the taskbar clock, and keeps calendar information close without opening a full desktop calendar application.

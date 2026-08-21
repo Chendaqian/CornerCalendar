@@ -12,6 +12,10 @@
 
 **[English](README.md) | 简体中文**
 
+<div align="center">
+  ![icon](https://raw.githubusercontent.com/Chendaqian/CornerCalendar/refs/heads/master/src/CornerCalendar/Resources/mainInfo.png)
+</div>
+
 CornerCalendar 是一款 Windows 日历小工具，用紧凑的月历面板替换任务栏日历弹窗。程序常驻系统托盘，点击任务栏时间即可打开，不需要启动完整的桌面日历应用。
 
 ## 功能
