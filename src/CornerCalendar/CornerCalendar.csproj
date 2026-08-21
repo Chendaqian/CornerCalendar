@@ -30,6 +30,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="build-verify\**" />
+    <EmbeddedResource Remove="build-verify\**" />
+    <None Remove="build-verify\**" />
+    <Page Remove="build-verify\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Hardcodet.NotifyIcon.Wpf" Version="2.0.1" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.0" />
     <PackageReference Include="Ical.Net" Version="4.3.1" />
