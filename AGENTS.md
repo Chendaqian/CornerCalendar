@@ -64,8 +64,7 @@ pwsh scripts\Publish-Artifacts.ps1
 - `.github/workflows/release.yml` 是实际发布工作流，tag 只作触发器。
 - tag 可以是 `v1.0.1` 或 `1.0.1`，去掉可选的 `v` 后必须与构建出的程序集版本完全一致。
 - 发布工作流调用 `scripts/Publish-Artifacts.ps1`，输出 self-contained 和 framework 两种 win-x64 多文件制品。
-- 修改版本的正确顺序：改 `<Version>` → 提交并推送 → 执行 `pwsh scripts\Publish-Release.ps1` 自动创建并推送匹配 tag。
-- `scripts\Publish-Release.ps1` 从实际构建出的 `CornerCalendar.dll` 读取程序集版本，不接受手工传入版本；tag 推送后由 `release.yml` 自动生成制品和 Release 描述。
+- 修改版本的正确顺序：改 `<Version>` → 执行 `pwsh scripts\Publish-Release.ps1`。脚本会从实际构建出的 `CornerCalendar.dll` 读取程序集版本，提交并推送当前分支，自动创建并推送匹配 tag；`release.yml` 随后构建制品并创建 Release。可使用 `-WhatIf` 预览，使用 `-WaitForRelease` 等待 Release 完成。
 
 ## 关键行为约定
 

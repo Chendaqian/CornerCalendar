@@ -74,10 +74,9 @@ The artifacts are written to `release/` and are not committed to the repository.
 Release procedure:
 
 1. Update `<Version>` in `src/CornerCalendar/CornerCalendar.csproj`.
-2. Commit and push the change.
-3. Run `pwsh scripts/Publish-Release.ps1` to build the current assembly, create the matching `v<Version>` tag, and push it to GitHub.
+2. Run `pwsh scripts/Publish-Release.ps1` to build the current assembly, commit and push the current branch, create the matching `v<Version>` tag, and push it to GitHub.
 
-The workflow in [`.github/workflows/release.yml`](.github/workflows/release.yml) validates the tag, builds both packages, uploads them, and uses GitHub's generated release notes for the Release description. Use `-WhatIf` to preview the version and tag without pushing anything.
+The workflow in [`.github/workflows/release.yml`](.github/workflows/release.yml) validates the tag, builds both packages, uploads them, and creates a GitHub Release named `v<Version>` with the change list. Use `-WhatIf` to preview the version, pending changes, and tag without committing or pushing. Add `-WaitForRelease` to wait for and verify the Release after the tag is pushed (run `gh auth login` first).
 
 ## Data And Privacy
 

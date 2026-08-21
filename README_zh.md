@@ -74,10 +74,9 @@ pwsh scripts\Publish-Artifacts.ps1
 发布流程：
 
 1. 修改 `src/CornerCalendar/CornerCalendar.csproj` 中的 `<Version>`。
-2. 提交并推送修改。
-3. 执行 `pwsh scripts/Publish-Release.ps1`，脚本会构建程序集、读取当前程序集版本，创建匹配的 `v<Version>` tag 并推送到 GitHub。
+2. 执行 `pwsh scripts/Publish-Release.ps1`，脚本会构建程序集、读取当前程序集版本，提交并推送当前分支，创建匹配的 `v<Version>` tag 并推送到 GitHub。
 
-[`.github/workflows/release.yml`](.github/workflows/release.yml) 会校验 tag、构建两个制品、上传文件，并自动生成 GitHub Release 描述。可先使用 `-WhatIf` 预览版本和 tag，不会执行推送。
+[`.github/workflows/release.yml`](.github/workflows/release.yml) 会校验 tag、构建两个制品、上传文件，并创建标题为 `v<Version>` 的 GitHub Release 和变更内容。可先使用 `-WhatIf` 预览版本、待提交改动和 tag，不会执行提交或推送；增加 `-WaitForRelease` 可等待并校验 Release 创建完成（需要先执行 `gh auth login`）。
 
 ## 数据与隐私
 
