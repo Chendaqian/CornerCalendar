@@ -24,8 +24,18 @@ public static class WindowPositionHelper
         public uint dwFlags;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT
+    {
+        public int X;
+        public int Y;
+    }
+
     [DllImport("user32.dll")]
     private static extern nint MonitorFromWindow(nint hwnd, uint dwFlags);
+
+    [DllImport("user32.dll")]
+    private static extern nint MonitorFromPoint(POINT point, uint dwFlags);
 
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     private static extern bool GetMonitorInfo(nint hMonitor, ref MONITORINFO lpmi);
@@ -35,6 +45,11 @@ public static class WindowPositionHelper
     /// 必须在窗口 Show() 之后调用（需要窗口句柄和 DPI 信息）。
     /// </summary>
     public static void PositionNearTaskbar(Window window)
+    {
+        PositionNearTaskbar(window, nint.Zero);
+    }
+
+    public static void PositionNearTaskbar(Window window, nint monitorHandle)
     {
         PresentationSource source = PresentationSource.FromVisual(window);
         if (source?.CompositionTarget == null) return;
@@ -47,7 +62,13 @@ public static class WindowPositionHelper
         nint hwnd = new WindowInteropHelper(window).Handle;
         if (hwnd == nint.Zero) return;
 
-        nint hMonitor = MonitorFromWindow(hwnd, 2 /* MONITOR_DEFAULTTONEAREST */);
+        // Windows 的主显示器包含虚拟屏幕坐标 (0, 0)，通过系统 API 获取主显示器，
+        // 不使用触发来源显示器，确保程序窗口始终只出现在主显示器。
+        nint hMonitor = MonitorFromPoint(new POINT { X = 0, Y = 0 }, 2 /* MONITOR_DEFAULTTONEAREST */);
+        if (hMonitor == nint.Zero)
+            hMonitor = monitorHandle != nint.Zero
+                ? monitorHandle
+                : MonitorFromWindow(hwnd, 2 /* MONITOR_DEFAULTTONEAREST */);
         MONITORINFO monitorInfo = new MONITORINFO { cbSize = Marshal.SizeOf(typeof(MONITORINFO)) };
 
         double workRight, workBottom, workTop;
@@ -103,5 +124,32 @@ public static class WindowPositionHelper
 
         window.Left = left;
         window.Top = top;
+    }
+
+    public static void PositionBeside(Window popup, Window anchor)
+    {
+        PresentationSource? source = PresentationSource.FromVisual(popup);
+        if (source?.CompositionTarget == null)
+            return;
+
+        nint anchorHandle = new WindowInteropHelper(anchor).Handle;
+        nint monitor = MonitorFromWindow(anchorHandle, 2);
+        MONITORINFO monitorInfo = new() { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        if (!GetMonitorInfo(monitor, ref monitorInfo))
+            return;
+
+        double scaleX = source.CompositionTarget.TransformFromDevice.M11;
+        double scaleY = source.CompositionTarget.TransformFromDevice.M22;
+        double workLeft = monitorInfo.rcWork.Left * scaleX;
+        double workRight = monitorInfo.rcWork.Right * scaleX;
+        double workTop = monitorInfo.rcWork.Top * scaleY;
+        double workBottom = monitorInfo.rcWork.Bottom * scaleY;
+        double left = anchor.Left - popup.ActualWidth - 8;
+        if (left < workLeft)
+            left = anchor.Left + anchor.ActualWidth + 8;
+
+        popup.Left = Math.Max(workLeft, Math.Min(left, workRight - popup.ActualWidth));
+        double top = anchor.Top + (anchor.ActualHeight - popup.ActualHeight) / 2;
+        popup.Top = Math.Max(workTop, Math.Min(top, workBottom - popup.ActualHeight));
     }
 }

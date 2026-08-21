@@ -190,14 +190,14 @@ public partial class MonthCalendar : UserControl
 
     private void UpdateWeekNumbers(IReadOnlyList<CalendarDay> days)
     {
-        List<string> weekNumbers = new();
+        List<WeekNumberInfo> weekNumbers = new();
         for (int row = 0; row < 6; row++)
         {
             int index = row * 7;
             if (index >= days.Count)
                 break;
 
-            weekNumbers.Add(ISOWeek.GetWeekOfYear(days[index].Date).ToString());
+            weekNumbers.Add(new WeekNumberInfo(ISOWeek.GetWeekOfYear(days[index].Date)));
         }
 
         WeekNumberGrid.ItemsSource = weekNumbers;
@@ -214,8 +214,12 @@ public partial class MonthCalendar : UserControl
         GridLength width = visible ? new GridLength(30) : new GridLength(0);
         WeekNumberHeaderColumn.Width = width;
         WeekNumberGridColumn.Width = width;
-        WeekNumberHeader.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
         WeekNumberGrid.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private sealed record WeekNumberInfo(int Number)
+    {
+        public string ToolTip => $"第{Number}周";
     }
 
     private void OnPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)

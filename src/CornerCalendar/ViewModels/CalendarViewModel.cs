@@ -112,7 +112,7 @@ public class CalendarViewModel : INotifyPropertyChanged, IDisposable
     /// <summary>
     /// 近期事件天数范围
     /// </summary>
-    public int UpcomingDays { get; set; } = 3;
+    public int UpcomingDays { get; set; } = 7;
 
     public CalendarViewModel() : this(CreateDefaultService())
     {
@@ -143,44 +143,10 @@ public class CalendarViewModel : INotifyPropertyChanged, IDisposable
             new ChinaCalendarService(settings.IcsRefreshMinutes)
         };
 
-        switch (settings.DataSource)
-        {
-            case DataSourceType.IcsUrl:
-                services.Add(CreateIcsService(settings));
-                break;
-
-            case DataSourceType.Both:
-                services.Add(CreateSystemService());
-                services.Add(CreateIcsService(settings));
-                break;
-
-            default:
-                services.Add(CreateSystemService());
-                break;
-        }
+        // 日程统一来自 ICS：中国日历本身也是 ICS，用户还可以添加自己的订阅。
+        services.Add(CreateIcsService(settings));
 
         return new AggregateCalendarService(services.ToArray());
-    }
-
-    private static ICalendarService CreateSystemService()
-    {
-        // 检查 WindowsCalendarService 是否可用（编译时可能被排除）
-        try
-        {
-            Type? type = Type.GetType("CornerCalendar.Core.Services.WindowsCalendarService, CornerCalendar");
-            if (type != null)
-            {
-                return (ICalendarService)Activator.CreateInstance(type)!;
-            }
-        }
-        catch
-        {
-            // WinRT not available
-        }
-
-        // WindowsCalendarService 被排除编译（需要 Windows SDK），系统日历集成未启用。
-        // 回退到空实现 —— 绝不向用户展示编造的假日程（ISSUES #1）
-        return new EmptyCalendarService();
     }
 
     private static readonly string[] SubscriptionColors = {
@@ -189,19 +155,25 @@ public class CalendarViewModel : INotifyPropertyChanged, IDisposable
 
     private static ICalendarService CreateIcsService(AppSettings settings)
     {
-        List<string> urls = settings.IcsUrls?.Where(u => !string.IsNullOrWhiteSpace(u)).ToList() ?? new List<string>();
+        List<(string Url, string Alias)> subscriptions = (settings.IcsUrls ?? new List<string>())
+            .Select((url, index) => (
+                Url: url,
+                Alias: settings.IcsAliases != null && index < settings.IcsAliases.Count
+                    ? settings.IcsAliases[index]
+                    : string.Empty))
+            .Where(subscription => !string.IsNullOrWhiteSpace(subscription.Url)
+                && !ChinaCalendarService.BuiltInSources.Any(source =>
+                    string.Equals(source.Url, subscription.Url, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
 
-        if (urls.Count == 0)
+        if (subscriptions.Count == 0)
             return new EmptyCalendarService();
 
-        // 获取别名列表，与 URL 一一对应
-        List<string> aliases = settings.IcsAliases ?? new List<string>();
-
-        if (urls.Count == 1)
+        if (subscriptions.Count == 1)
         {
-            string name = GetAlias(aliases, 0, urls[0]);
+            string name = GetAlias(subscriptions[0].Alias, 0, subscriptions[0].Url);
             return new IcsCalendarService(
-                urls[0],
+                subscriptions[0].Url,
                 settings.IcsRefreshMinutes,
                 name,
                 SubscriptionColors[0]);
@@ -209,11 +181,11 @@ public class CalendarViewModel : INotifyPropertyChanged, IDisposable
 
         // 多个 URL：创建多个服务并用 AggregateCalendarService 聚合
         List<ICalendarService> services = new List<ICalendarService>();
-        for (int i = 0; i < urls.Count; i++)
+        for (int i = 0; i < subscriptions.Count; i++)
         {
-            string name = GetAlias(aliases, i, urls[i]);
+            string name = GetAlias(subscriptions[i].Alias, i, subscriptions[i].Url);
             services.Add(new IcsCalendarService(
-                urls[i],
+                subscriptions[i].Url,
                 settings.IcsRefreshMinutes,
                 name,
                 SubscriptionColors[i % SubscriptionColors.Length]));
@@ -225,10 +197,10 @@ public class CalendarViewModel : INotifyPropertyChanged, IDisposable
     /// <summary>
     /// 获取订阅别名：优先使用用户设置的别名，否则从 URL 域名推断
     /// </summary>
-    private static string GetAlias(List<string> aliases, int index, string url)
+    private static string GetAlias(string alias, int index, string url)
     {
-        if (index < aliases.Count && !string.IsNullOrWhiteSpace(aliases[index]))
-            return aliases[index];
+        if (!string.IsNullOrWhiteSpace(alias))
+            return alias;
 
         // 从 URL 推断默认名称
         try

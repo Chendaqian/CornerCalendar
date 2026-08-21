@@ -13,18 +13,32 @@
 
             <!-- 任务栏时钟和托盘共用的右键菜单，颜色随主题动态更新。 -->
             <Style TargetType="{x:Type ContextMenu}">
-                <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}" />
+                <Setter Property="Background" Value="{DynamicResource BackgroundBrush}" />
                 <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
                 <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
                 <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="Padding" Value="4" />
+                <Setter Property="Padding" Value="2" />
                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type ContextMenu}">
+                            <Border Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    Padding="{TemplateBinding Padding}"
+                                    CornerRadius="4"
+                                    SnapsToDevicePixels="True">
+                                <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle" />
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
             </Style>
             <Style TargetType="{x:Type MenuItem}">
                 <Setter Property="OverridesDefaultStyle" Value="True" />
                 <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-                <Setter Property="Background" Value="Transparent" />
-                <Setter Property="Padding" Value="8,7" />
+                <Setter Property="Background" Value="{DynamicResource BackgroundBrush}" />
+                <Setter Property="Padding" Value="8,6" />
                 <Setter Property="Margin" Value="0" />
                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                 <Setter Property="Template">
@@ -33,24 +47,15 @@
                             <Border x:Name="MenuItemBackground"
                                     Background="{TemplateBinding Background}"
                                     Padding="{TemplateBinding Padding}"
-                                    CornerRadius="4">
-                                <Grid MinWidth="150">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="24" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <ContentPresenter Grid.Column="0"
-                                                      Width="24" Height="24"
-                                                      ContentSource="Icon"
-                                                      HorizontalAlignment="Center"
-                                                      VerticalAlignment="Center" />
-                                    <ContentPresenter Grid.Column="1"
-                                                      ContentSource="Header"
-                                                      RecognizesAccessKey="True"
-                                                      TextElement.Foreground="{TemplateBinding Foreground}"
-                                                      VerticalAlignment="Center"
-                                                      Margin="8,0,8,0" />
-                                </Grid>
+                                    CornerRadius="3"
+                                    MinWidth="168"
+                                    MinHeight="36"
+                                    SnapsToDevicePixels="True">
+                                <ContentPresenter ContentSource="Header"
+                                                  RecognizesAccessKey="True"
+                                                  TextElement.Foreground="{TemplateBinding Foreground}"
+                                                  HorizontalAlignment="Stretch"
+                                                  VerticalAlignment="Center" />
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsHighlighted" Value="True">
@@ -69,9 +74,17 @@
                 </Setter>
             </Style>
             <Style TargetType="{x:Type Separator}">
-                <Setter Property="Background" Value="{DynamicResource SeparatorBrush}" />
-                <Setter Property="Height" Value="1" />
-                <Setter Property="Margin" Value="8,4" />
+                <Setter Property="OverridesDefaultStyle" Value="True" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type Separator}">
+                            <Border Height="1"
+                                    Margin="8,4"
+                                    Background="{DynamicResource SeparatorBrush}"
+                                    SnapsToDevicePixels="True" />
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
             </Style>
 
             <!-- 托盘图标定义（常驻系统托盘；图标为 Resources/icon.ico，右键菜单在代码中动态创建） -->

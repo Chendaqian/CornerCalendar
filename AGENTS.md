@@ -15,7 +15,7 @@ CornerCalendar 是 Windows 10/11 上的任务栏日历工具：应用常驻系�
 | CommunityToolkit.Mvvm 8.3.0 | MVVM 基础设施 |
 | Hardcodet.NotifyIcon.Wpf 2.0.1 | 系统托盘图标 |
 | Ical.Net 4.3.1 | ICS 订阅解析 |
-| SetWinEventHook / Win32 | 监听和拦截系统日历窗口 |
+| Win32 / WPF interop | 定位主显示器任务栏、创建任务栏时间覆盖窗口 |
 | Open-Meteo / 公网 IP 定位服务 | 天气与城市定位数据 |
 
 ## 仓库结构
@@ -56,7 +56,7 @@ pwsh scripts\Publish-Artifacts.ps1
 .\src\CornerCalendar\bin\Debug\net8.0-windows\win-x64\CornerCalendar.exe
 ```
 
-交付前至少确认：构建 0 错误 0 警告、测试通过；涉及窗口行为时还要在 Windows 上手工检查托盘、任务栏时钟、主面板、设置窗口和系统日历恢复。
+交付前至少确认：构建 0 错误 0 警告、测试通过；涉及窗口行为时还要在 Windows 上手工检查托盘、主显示器任务栏时钟、主面板、设置窗口，以及其他显示器的原生任务栏控制中心。
 
 ## 版本与发布
 
@@ -69,17 +69,17 @@ pwsh scripts\Publish-Artifacts.ps1
 
 ## 关键行为约定
 
-1. `App.xaml.cs` 是组合根，负责托盘图标、任务栏时钟覆盖层、弹窗/设置窗口生命周期、系统日历拦截器和全局异常日志。
+1. `App.xaml.cs` 是组合根，负责托盘图标、主显示器任务栏时钟覆盖层、天气后台刷新、弹窗/设置窗口生命周期和全局异常日志。
 2. `AppSettings.Current` 是设置单例，文件位置为 `%LOCALAPPDATA%\CornerCalendar\settings.json`。保存使用临时文件和原子替换，不要在新代码中引入另一套设置实例或路径。
-3. 中国日历由 `ChinaCalendarService` 读取远程 ICS，天气由 `WeatherService` 读取远程 API；不要为了展示结果新增本地硬编码的节日或天气数据。
+3. 中国日历由 `ChinaCalendarService` 读取 4 条远程 ICS，天气由 `WeatherService` 读取远程 API 并使用本地缓存和后台刷新；天气刷新频率可在设置中选择 30、60、120 或 240 分钟，默认 120 分钟；不要为了展示结果新增本地硬编码的节日或天气数据。
 4. `SettingsWindow` 通过左侧分类导航组织设置，修改新设置时同步处理加载、保存和恢复默认值。
 5. 点击日期格由 `MonthCalendar.DateClicked` 通知主面板，`EventDetailWindow` 显示该日期的日历信息和当天日程。不要重新引入基于鼠标悬浮自动弹出详情的行为。
 6. 所有颜色和字号优先使用 `Themes/Light.xaml`、`Themes/Dark.xaml`、`Themes/FontSizes.xaml` 的资源键；不要在 XAML 中新增无必要的硬编码颜色或字号。
-7. 系统日历拦截器隐藏窗口时必须保留恢复路径；修改拦截逻辑后必须验证应用退出后系统原生日历仍能打开。
+7. 任务栏时间覆盖窗口只允许创建在 Windows 标记的主显示器；其他显示器必须保留系统原生任务栏时间和通知中心。
 
 ## 数据源限制
 
-`WindowsCalendarService.cs` 因 Windows SDK / CsWinRT 依赖在 csproj 中被 `Compile Remove` 排除。除非用户明确要求并提供相应 SDK 环境，否则不要取消该排除项，也不要把系统数据源伪装成模拟日程。
+程序只使用 ICS 作为日程数据源：内置中国日历和用户添加的日历均通过 ICS 加载。不要重新引入 Windows 系统日历数据源，也不要把系统数据伪装成模拟日程。
 
 ## 编码与异常约定
 
@@ -95,6 +95,6 @@ pwsh scripts\Publish-Artifacts.ps1
 
 - `bin/`、`obj/` 和 `release/` 是生成目录，不应提交。
 - `*.ics` 被 gitignore，测试不要把真实订阅样例提交进仓库。
-- 日历缓存、设置和错误日志都位于 `%LOCALAPPDATA%\CornerCalendar\`。
-- 任务栏覆盖窗口会隐藏系统时间并在退出时恢复；任何改变窗口显示状态的代码都必须覆盖异常和退出路径。
+- 日历缓存、天气缓存、设置和错误日志都位于 `%LOCALAPPDATA%\CornerCalendar\`；天气缓存文件为 `weather-cache.json`。
+- 任务栏时间覆盖窗口只覆盖主显示器；退出时必须关闭覆盖窗口并保留其他显示器的系统任务栏功能。
 - 许可证文件是 `LICENSE.txt`，文档为 `README.md` 和 `README_zh.md`。

@@ -128,7 +128,7 @@ try {
         return
     }
 
-    Invoke-Git -Arguments @('-C', $repoRoot, 'tag', '-a', $tag, '-m', "CornerCalendar v$version") | Out-Null
+    Invoke-Git -Arguments @('-C', $repoRoot, 'tag', '-a', $tag, '-m', $tag) | Out-Null
     try {
         Invoke-Git -Arguments @('-C', $repoRoot, 'push', $Remote, $tag) | Out-Null
     }

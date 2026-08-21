@@ -1,3 +1,4 @@
+using CornerCalendar.Core.Helpers;
 using CornerCalendar.Core.Models;
 using CornerCalendar.ViewModels;
 using System.Windows;
@@ -32,7 +33,8 @@ public partial class EventDetailWindow : Window
             : Visibility.Visible;
 
         List<string> holidayParts = new();
-        if (!string.IsNullOrWhiteSpace(day.LegalHoliday))
+        if (!string.IsNullOrWhiteSpace(day.LegalHoliday)
+            && !string.Equals(day.LegalHoliday, day.LunarFestival, StringComparison.Ordinal))
             holidayParts.Add(day.LegalHoliday);
         if (day.IsWorkday)
             holidayParts.Add("调休补班");
@@ -146,14 +148,7 @@ public partial class EventDetailWindow : Window
         if (!IsVisible)
             return;
 
-        Rect screen = SystemParameters.WorkArea;
-        double left = mainPanel.Left - ActualWidth - 8;
-        if (left < screen.Left)
-            left = mainPanel.Left + mainPanel.ActualWidth + 8;
-        Left = Math.Min(left, screen.Right - ActualWidth);
-
-        double top = mainPanel.Top + (mainPanel.ActualHeight - ActualHeight) / 2;
-        Top = Math.Max(screen.Top, Math.Min(top, screen.Bottom - ActualHeight));
+        WindowPositionHelper.PositionBeside(this, mainPanel);
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e)

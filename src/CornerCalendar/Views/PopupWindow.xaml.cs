@@ -4,9 +4,10 @@ using CornerCalendar.Core.Services;
 using CornerCalendar.ViewModels;
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
-using System.Windows.Shapes;
 using System.Windows.Threading;
 
 namespace CornerCalendar.Views;
@@ -16,6 +17,8 @@ public partial class PopupWindow : Window
     private readonly CalendarViewModel _calendarViewModel;
     private readonly AppSettings _settings;
     private EventDetailWindow? _detailWindow;
+    private WeatherForecastWindow? _weatherForecastWindow;
+    private WeatherInfo? _currentWeather;
     private readonly List<string> _weatherLocations;
     private CancellationTokenSource? _weatherLoadCts;
     private int _weatherIndex;
@@ -32,9 +35,6 @@ public partial class PopupWindow : Window
         _calendarViewModel = new CalendarViewModel();
 
         InitializeComponent();
-
-        // 置顶按钮初始外观（状态在窗口重建间保持）
-        UpdatePinAppearance();
 
         // 设置 DataContext
         DataContext = _calendarViewModel;
@@ -166,20 +166,38 @@ public partial class PopupWindow : Window
             WeatherInfo? weather = await WeatherService.GetWeatherAsync(
                 location,
                 cancellationToken,
-                _settings.WeatherApiUrl);
+                _settings.WeatherApiUrl,
+                _settings.WeatherRefreshMinutes);
             if (cancellationToken.IsCancellationRequested || index != _weatherIndex)
                 return;
 
             if (weather == null)
             {
+                _currentWeather = null;
                 WeatherSummaryText.Text = "天气获取失败";
+                WeatherSection.ToolTip = "天气获取失败";
                 return;
             }
 
+            _currentWeather = weather;
             WeatherIconHost.Content = WeatherIconFactory.Create(weather.IconKind);
             WeatherCityText.Text = weather.City;
             WeatherSummaryText.Text = weather.Description;
             WeatherTemperatureText.Text = $"{weather.Temperature:F0}°";
+            WeatherForecastDay? today = weather.Forecast
+                .FirstOrDefault(day => day.Date.Date == DateTime.Today);
+            WeatherSection.ToolTip =
+                $"{weather.City}\n" +
+                $"天气：{weather.Description}\n" +
+                $"温度：当前 {weather.Temperature:F0}°，体感 {weather.FeelsLikeTemperature:F0}°\n" +
+                $"湿度：{weather.RelativeHumidity:F0}%\n" +
+                $"云量：{weather.CloudCover:F0}%\n" +
+                $"风速：{weather.WindSpeed:F0} km/h\n" +
+                $"降水：当前 {weather.Precipitation:F1} mm，概率 {today?.PrecipitationProbability ?? 0:F0}%\n" +
+                $"紫外线：{weather.UvIndex:F1}\n" +
+                $"能见度：{weather.Visibility / 1000:F1} km\n" +
+                $"日出日落：{today?.Sunrise ?? "--:--"} / {today?.Sunset ?? "--:--"}\n" +
+                "点击查看未来七天天气";
         }
         catch (OperationCanceledException)
         {
@@ -194,12 +212,40 @@ public partial class PopupWindow : Window
 
     private void OnPreviousWeatherClick(object sender, RoutedEventArgs e)
     {
+        e.Handled = true;
         ChangeWeather(-1);
     }
 
     private void OnNextWeatherClick(object sender, RoutedEventArgs e)
     {
+        e.Handled = true;
         ChangeWeather(1);
+    }
+
+    private void OnWeatherSectionPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (IsInsideButton(e.OriginalSource as DependencyObject))
+            return;
+
+        if (_currentWeather?.Forecast.Count > 0)
+        {
+            _weatherForecastWindow ??= new WeatherForecastWindow();
+            _weatherForecastWindow.ShowForecast(_currentWeather, this);
+        }
+
+        e.Handled = true;
+    }
+
+    private static bool IsInsideButton(DependencyObject? element)
+    {
+        while (element != null)
+        {
+            if (element is Button)
+                return true;
+            element = System.Windows.Media.VisualTreeHelper.GetParent(element);
+        }
+
+        return false;
     }
 
     private void ChangeWeather(int direction)
@@ -279,30 +325,7 @@ public partial class PopupWindow : Window
         }
     }
 
-    // 置顶状态：static 使其在窗口重建间保持（面板每次显示都会重建窗口）；应用重启后复位
-    private static bool _pinned;
-
     private bool _isHidingAnimated;
-
-    /// <summary>
-    /// 启动焦点丢失检测
-    /// 策略：记录弹出时的前台窗口，只有当前台窗口变为其他窗口时才关闭
-    /// </summary>
-    /// <summary>
-    /// 切换置顶：置顶后窗口保持最前、失焦/点击别处都不再自动隐藏；
-    /// 取消置顶恢复原有自动隐藏逻辑（点击时钟/托盘的显式切换不受置顶影响）。
-    /// </summary>
-    private void OnPinClick(object sender, RoutedEventArgs e)
-    {
-        _pinned = !_pinned;
-        UpdatePinAppearance();
-    }
-
-    private void UpdatePinAppearance()
-    {
-        PinIcon.SetResourceReference(Shape.FillProperty, _pinned ? "TodayAccentBrush" : "TextSecondaryBrush");
-        PinButton.ToolTip = _pinned ? "取消置顶（恢复失焦自动隐藏）" : "置顶（保持最前，不再自动隐藏）";
-    }
 
     /// <summary>
     /// 带动画隐藏：面板向任务栏方向下滑后隐藏（与入场动画对称）。
@@ -313,6 +336,7 @@ public partial class PopupWindow : Window
         if (!IsVisible || _isHidingAnimated)
             return;
 
+        CloseWeatherForecastWindow();
         _isHidingAnimated = true;
 
         double distance = Math.Max(RootBorder.ActualHeight, 1);
@@ -355,12 +379,21 @@ public partial class PopupWindow : Window
         }
     }
 
+    private void CloseWeatherForecastWindow()
+    {
+        if (_weatherForecastWindow != null)
+        {
+            _weatherForecastWindow.Hide();
+        }
+    }
+
     /// <summary>
     /// 隐藏时同时关闭详情
     /// </summary>
     protected override void OnClosed(EventArgs e)
     {
         CloseDetailWindow();
+        CloseWeatherForecastWindow();
         if (_weatherLoadCts != null)
         {
             try

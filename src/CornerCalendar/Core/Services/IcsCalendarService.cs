@@ -338,10 +338,23 @@ public class IcsCalendarService : ICalendarService, IDisposable
     private static bool TitlesIndicateSameEvent(string a, string b)
     {
         // 过短的标题包含关系匹配面过大（如单字），不视为同一事件
-        if (Math.Min(a.Length, b.Length) < 2)
+        string comparableA = NormalizeComparableTitle(a);
+        string comparableB = NormalizeComparableTitle(b);
+        if (Math.Min(comparableA.Length, comparableB.Length) < 2)
             return false;
 
-        return a.Contains(b) || b.Contains(a);
+        return comparableA.Contains(comparableB, StringComparison.Ordinal)
+            || comparableB.Contains(comparableA, StringComparison.Ordinal);
+    }
+
+    private static string NormalizeComparableTitle(string title)
+    {
+        string trimmed = title.Trim();
+        if (trimmed.StartsWith('「') && trimmed.Contains('」'))
+            return trimmed[1..trimmed.IndexOf('」')];
+        if (trimmed.StartsWith('『') && trimmed.Contains('』'))
+            return trimmed[1..trimmed.IndexOf('』')];
+        return trimmed;
     }
 
     public void Dispose()

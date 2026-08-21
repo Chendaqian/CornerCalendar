@@ -7,12 +7,6 @@
 
 ## 🔴 功能性问题
 
-### 1. 默认数据源静默回退到假数据 ✅（2026-08-18 修复）
-- **位置**：`ViewModels/CalendarViewModel.cs`（`CreateSystemService`）
-- **描述**：`WindowsCalendarService` 被 `<Compile Remove>` 排除编译，反射 `Type.GetType(...)` 必然返回 null，于是回退到 `MockCalendarService`。用户选择"系统邮箱"数据源时，看到的其实是**编造的模拟事件**，且毫无提示。
-- **影响**：日历应用显示假日程，属于严重误导。
-- **修复方式**：回退目标改为 `EmptyCalendarService`（不再显示任何假日程）；设置页数据源选项下方增加"当前版本未启用系统日历集成"的提示文案。
-
 ### 2. 主题"跟随系统"实际不跟随 ✅（2026-08-18 修复）
 - **位置**：`Core/Helpers/ThemeHelper.cs`（全文件）
 - **描述**：`IsSystemDarkMode()` 只在 `ApplyTheme` 被调用时读取注册表 `AppsUseLightTheme`，全仓库没有任何 `SystemEvents.UserPreferenceChanged` 订阅。Windows 切换深浅色后应用不会跟随变化。早期进度文档宣称的"自动跟随系统主题（监听注册表）"并未实现（该文档已从仓库移除）。
@@ -39,28 +33,9 @@
 - **描述**：`DispatcherUnhandledException` 仅 `Debug.WriteLine` + `Handled = true`。Release 下无日志、无提示，用户机器上的崩溃完全不可见；只有 `ShowSettings` 一处有文件日志。
 - **修复方式**：新增 `Core/Helpers/ErrorLog.cs`（追加写 `%LOCALAPPDATA%\CornerCalendar\error.log`，超过 512KB 重写，日志失败静默不影响主流程）；全局异常处理器写入该日志。未引入日志框架（遵守项目约定）。
 
-### 18. 拦截后退出导致系统日历打不开 ✅（2026-08-18 修复）
-- **位置**：`Core/Helpers/SystemCalendarInterceptor.cs`
-- **描述**：用户报告"程序启动后退出，系统原生日历打不开"。根因：Win11 shell flyout（ShellExperienceHost 的 CoreWindow）靠 DWM cloak 隐藏/显示，shell 重新显示时只 uncloak、**不会重设 `WS_VISIBLE`**；拦截器用 `ShowWindow(SW_HIDE)` 清掉了 `WS_VISIBLE` 且无恢复路径（防抖冷却分支隐藏的窗口甚至未加入跟踪集合），导致 shell 之后 uncloak 也永远不可见。
-- **修复方式**：
-  1. 统一隐藏入口 `HideSystemWindow` —— 所有隐藏（含冷却分支）都跟踪句柄；
-  2. 收到被跟踪窗口的 `EVENT_OBJECT_CLOAK`（shell 以自己的方式关闭弹窗）时立即用 `SW_SHOWNA` 恢复 `WS_VISIBLE`（窗口已被 cloak，无可见副作用）；
-  3. `EVENT_OBJECT_DESTROY` 清理过时句柄；
-  4. 退出恢复前用 `IsWindow` 校验句柄，恢复改用 `SW_SHOWNA`（不抢焦点）。
-
 ---
 
 ## 🟡 资源与性能
-
-### 7. WinEvent 钩子范围过大、回调开销高 ✅（2026-08-18 修复）
-- **位置**：`Core/Helpers/SystemCalendarInterceptor.cs`
-- **描述**：从 `EVENT_OBJECT_SHOW` 一路钩到 `EVENT_MAX (0x80FF)`，覆盖全系统所有窗口事件；每次回调都执行 `GetWindowThreadProcessId` + `Process.GetProcessById`（堆分配）。对常驻工具而言 CPU / GC 开销不可忽视。
-- **修复方式**：改为 5 个精确事件范围（CREATE+SHOW / DESTROY / STATECHANGE / NAMECHANGE / CLOAK+UNCLOAK）；新增 PID→进程名缓存，避免重复分配 `Process` 对象。
-
-### 8. `Process.GetProcessById` 结果未 Dispose ✅（2026-08-18 修复）
-- **位置**：`Core/Helpers/SystemCalendarInterceptor.cs`
-- **描述**：`Process` 实现 `IDisposable`，未释放会泄漏句柄；事件高频触发时持续累积。
-- **修复方式**：统一 `using Process proc = Process.GetProcessById(...)`（随 #7 的进程名缓存一并处理）。
 
 ### 9. `HttpClient` 持有但无释放路径 ✅（2026-08-18 修复）
 - **位置**：`Core/Services/IcsCalendarService.cs`
@@ -110,7 +85,7 @@
 
 ### 17. 工程问题 ⬜（部分完成）
 - ~~无单元测试项目~~ ✅（2026-08-18：新增 `src/CornerCalendar.Tests`（xunit），覆盖 ICS 去重回归与农历节日；`dotnet test src\CornerCalendar.sln` 运行）。
-- `WindowsCalendarService.cs` 仍被排除编译 → "系统邮箱"数据源名存实亡（与问题 #1 联动；#1 已消除假日程误导，真正接入需 Windows SDK，按需再做）。
+- Windows 系统日历数据源已移除，程序统一使用 ICS 订阅。
 
 ---
 

@@ -17,21 +17,21 @@ CornerCalendar 是一款 Windows 日历小工具，用紧凑的月历面板替�
 ## 功能
 
 - 月历视图，显示农历、传统节日、二十四节气、中国大陆法定节假日和调休补班信息。
-- 中国日历数据来自远程 [YangH9/ChinaCalendar](https://github.com/YangH9/ChinaCalendar) ICS 数据源，并支持缓存。
+- 内置 4 条来自 [YangH9/ChinaCalendar](https://github.com/YangH9/ChinaCalendar) 的 ICS：法定节假日和调休补班、节日纪念日、二十四节气、农历，并支持本地缓存。
 - 每日宜忌使用 MIT 许可的开源库 [6tail/lunar-csharp](https://github.com/6tail/lunar-csharp) 按日期计算；ICS 订阅源提供宜忌时优先使用订阅源数据。
 - 使用 [Ical.Net](https://github.com/ical-org/ical.net) 解析 ICS，支持多个订阅、订阅别名、刷新频率和事件颜色圆点。
 - 点击日期打开独立详情窗口，展示农历、节日、节气、休班状态和当天日程。
-- 主窗口顶部显示天气摘要，支持公网 IP 自动定位或手动设置城市；设置多个城市后可以在主窗口切换。
+- 主窗口顶部显示天气摘要，支持公网 IP 自动定位或手动设置城市；设置多个城市后可以在主窗口切换。天气会在后台预加载、本地缓存，并按设置的 30/60/120/240 分钟间隔刷新，默认 120 分钟。
 - 支持使用 `DateTime.ToString` 格式自定义任务栏时间，输入字面量 `\n` 可换行。
-- 支持系统托盘图标、托盘右键菜单、开机自启动、浅色/深色/跟随系统主题和字号设置。
-- 拦截任务栏日历并在程序退出时恢复系统窗口，避免原生 Windows 日历无法再次打开。
+- 支持系统托盘图标、托盘右键菜单、开机自启动、浅色/深色/跟随系统主题、字号设置、设置/关于/更新页面。
+- 只在主显示器创建任务栏时间覆盖窗口；其他显示器保留 Windows 原生任务栏时间和通知中心。
 
 ## 运行要求
 
 - Windows 10 或 Windows 11。
 - 从源码构建需要 .NET 8 SDK。
 - 自包含版本已包含 .NET 运行时，不需要额外安装运行时。
-- 获取最新中国日历、ICS、地理编码和天气数据需要网络；支持缓存的数据源在断网时可以继续使用缓存。
+- 获取最新中国日历、用户 ICS、地理编码和天气数据需要网络；断网时可以使用已缓存的 ICS 和天气数据。
 
 ## 下载
 
@@ -77,7 +77,18 @@ pwsh scripts\Publish-Artifacts.ps1
 
 ## 数据与隐私
 
-CornerCalendar 将设置和支持缓存的数据保存到 `%LOCALAPPDATA%\CornerCalendar\`。天气自动定位会请求公网 IP 定位服务，手动设置城市会使用 Open-Meteo 地理编码；用户配置的日历 URL 由应用直接请求。
+CornerCalendar 将设置、日历缓存、天气缓存和错误日志保存到 `%LOCALAPPDATA%\CornerCalendar\`：
+
+- `settings.json`：应用设置。
+- `cache/`：ICS 订阅缓存。
+- `weather-cache.json`：天气缓存。
+- `error.log`：程序错误日志。
+
+天气自动定位会请求公网 IP 定位服务，手动设置城市会使用 Open-Meteo 地理编码；用户配置的日历 URL 由应用直接请求。
+
+## 设置说明
+
+设置窗口可以配置主题、字号、开机自启动、用户 ICS 订阅、ICS 刷新频率、天气位置、天气服务地址、天气刷新频率、显示选项和任务栏时间格式。天气刷新频率默认 120 分钟，也可以设置为 30、60 或 240 分钟。
 
 ## 项目结构
 
@@ -94,9 +105,16 @@ src/
     └── Views/                         # 弹出面板、设置、详情、任务栏和控件
 ```
 
-## 当前限制
+## 日历数据源
 
-Windows 日历 API 实现仍保留在仓库中，但由于需要 Windows SDK 和 CsWinRT 配置，目前被排除在编译之外。未启用该集成时，系统日历数据源会回退为空服务，不会显示伪造的日程。
+程序仅使用 ICS 订阅作为日程数据源。内置中国日历订阅包括：
+
+- `中国日历-法定节假日`：法定节假日和调休补班，地址为 [`cal_holiday.ics`](https://yangh9.github.io/ChinaCalendar/cal_holiday.ics)。
+- `中国日历-节日纪念日`：节日和纪念日，地址为 [`cal_festival.ics`](https://yangh9.github.io/ChinaCalendar/cal_festival.ics)。
+- `中国日历-二十四节气`：二十四节气，地址为 [`cal_solarTerm.ics`](https://yangh9.github.io/ChinaCalendar/cal_solarTerm.ics)。
+- `中国日历-农历`：农历日期和宜忌信息，地址为 [`cal_lunar.ics`](https://yangh9.github.io/ChinaCalendar/cal_lunar.ics)。
+
+用户添加的日历也通过 ICS 加载；Windows 系统日历不属于程序的数据源。
 
 ## 许可证
 

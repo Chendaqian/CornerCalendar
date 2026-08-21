@@ -13,7 +13,7 @@
 **English | [简体中文](README_zh.md)**
 
 <div align="center">
-  ![icon](https://raw.githubusercontent.com/Chendaqian/StudioPulse/refs/heads/master/src/StudioPulse/Resources/icon.png)
+  ![icon](https://raw.githubusercontent.com/Chendaqian/CornerCalendar/refs/heads/master/src/CornerCalendar/Resources/icon.png)
 </div>
 
 CornerCalendar is a Windows calendar utility that replaces the taskbar calendar flyout with a compact monthly calendar. It stays in the system tray, opens from the taskbar clock, and keeps calendar information close without opening a full desktop calendar application.
@@ -21,21 +21,21 @@ CornerCalendar is a Windows calendar utility that replaces the taskbar calendar 
 ## Features
 
 - Monthly calendar with lunar dates, traditional festivals, solar terms, legal holidays, and Chinese mainland workday adjustments.
-- Calendar data from the remote [YangH9/ChinaCalendar](https://github.com/YangH9/ChinaCalendar) ICS source, with local caching.
+- Four built-in ICS calendars from [YangH9/ChinaCalendar](https://github.com/YangH9/ChinaCalendar): legal holidays and makeup workdays, festivals and observances, solar terms, and lunar dates; all use local caching.
 - Daily auspicious and inauspicious activities are calculated with the MIT-licensed [6tail/lunar-csharp](https://github.com/6tail/lunar-csharp) library; ICS-provided values take priority when available.
 - ICS subscriptions parsed by [Ical.Net](https://github.com/ical-org/ical.net), including multiple subscriptions, aliases, refresh intervals, and event-color dots.
 - Click a date to open a separate detail window showing lunar information, holidays, and that day's schedules.
-- Optional weather summary at the top of the calendar, with IP-based automatic location or manually configured cities. Multiple cities can be switched from the main panel.
+- Optional weather summary at the top of the calendar, with IP-based automatic location or manually configured cities. Multiple cities can be switched from the main panel. Weather is prefetched in the background, cached locally, and refreshed at a configurable 30/60/120/240-minute interval (120 minutes by default).
 - Custom taskbar clock format using `DateTime.ToString` patterns, including the literal `\n` for a new line.
-- System tray icon, tray context menu, startup option, light/dark/follow-system themes, and configurable font size.
-- Taskbar clock interception and restoration safeguards so the original Windows calendar remains usable after CornerCalendar exits.
+- System tray icon, tray context menu, startup option, light/dark/follow-system themes, configurable font size, and settings/about/update pages.
+- The taskbar clock overlay is created only on the primary display. Other displays keep the native Windows taskbar clock and notification center.
 
 ## Requirements
 
 - Windows 10 or Windows 11.
 - .NET 8 SDK for development.
 - The self-contained release does not require a separate .NET runtime.
-- Network access is required for fresh ChinaCalendar, ICS, geocoding, and weather data. Cached ICS data remains available when supported by the source.
+- Network access is required for fresh ChinaCalendar, user ICS, geocoding, and weather data. Cached ICS and weather data can be used while offline.
 
 ## Download
 
@@ -81,7 +81,18 @@ The workflow in [`.github/workflows/release.yml`](.github/workflows/release.yml)
 
 ## Data And Privacy
 
-CornerCalendar stores settings and supported calendar caches under `%LOCALAPPDATA%\CornerCalendar\`. Weather automatic location uses a public IP geolocation service; manually configured cities use Open-Meteo geocoding. Calendar URLs configured by the user are requested directly by the application.
+CornerCalendar stores settings, calendar caches, weather cache, and error logs under `%LOCALAPPDATA%\CornerCalendar\`:
+
+- `settings.json`: application settings.
+- `cache/`: ICS subscription cache files.
+- `weather-cache.json`: locally cached weather results.
+- `error.log`: application error log.
+
+Weather automatic location uses a public IP geolocation service; manually configured cities use Open-Meteo geocoding. Calendar URLs configured by the user are requested directly by the application.
+
+## Configuration
+
+The Settings window can configure theme, font size, startup behavior, user ICS subscriptions, ICS refresh frequency, weather locations, weather API URL, weather refresh frequency, display options, and taskbar time format. The weather refresh frequency defaults to 120 minutes and can be changed to 30, 60, or 240 minutes.
 
 ## Project Layout
 
@@ -98,9 +109,16 @@ src/
     └── Views/                         # popup, settings, detail, taskbar, and controls
 ```
 
-## Limitations
+## Calendar Data Source
 
-The Windows Calendar API implementation is kept in the repository but excluded from compilation because it requires the Windows SDK and CsWinRT setup. When that integration is unavailable, the system-calendar source falls back to an empty service rather than displaying fabricated events.
+The application uses ICS subscriptions as its only calendar data source. The built-in ChinaCalendar subscriptions are:
+
+- `中国日历-法定节假日`: legal holidays and makeup workdays — [`cal_holiday.ics`](https://yangh9.github.io/ChinaCalendar/cal_holiday.ics).
+- `中国日历-节日纪念日`: festivals and observances — [`cal_festival.ics`](https://yangh9.github.io/ChinaCalendar/cal_festival.ics).
+- `中国日历-二十四节气`: the 24 solar terms — [`cal_solarTerm.ics`](https://yangh9.github.io/ChinaCalendar/cal_solarTerm.ics).
+- `中国日历-农历`: lunar dates and almanac information — [`cal_lunar.ics`](https://yangh9.github.io/ChinaCalendar/cal_lunar.ics).
+
+User-added calendars are also loaded through ICS. The Windows system calendar is not used by the application.
 
 ## License
 

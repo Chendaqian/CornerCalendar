@@ -24,21 +24,21 @@
 
         <!-- 今日高亮圆形背景（缩小，不遮挡农历） -->
         <Ellipse x:Name="TodayCircle"
-                 Width="34" Height="34"
+                 Width="28" Height="28"
                  Fill="{DynamicResource TodayAccentBrush}"
                  Visibility="Collapsed"
                  VerticalAlignment="Top"
-                 Margin="0,6,0,0" />
+                 Margin="0,8,0,0" />
 
         <!-- 选中日期圆形边框 -->
         <Ellipse x:Name="SelectedCircle"
-                 Width="34" Height="34"
+                 Width="28" Height="28"
                  Stroke="{DynamicResource TodayAccentBrush}"
                  StrokeThickness="1.5"
                  Fill="Transparent"
                  Visibility="Collapsed"
                  VerticalAlignment="Top"
-                 Margin="0,6,0,0" />
+                 Margin="0,8,0,0" />
 
         <!-- 日期数字 -->
         <TextBlock x:Name="DayText"

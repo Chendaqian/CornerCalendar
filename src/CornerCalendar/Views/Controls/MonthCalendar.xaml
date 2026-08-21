@@ -72,13 +72,6 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <TextBlock Grid.Column="0" x:Name="WeekNumberHeader"
-                       Text="周"
-                       FontSize="{DynamicResource FontSizeSecondary}"
-                       Foreground="{DynamicResource TextSecondaryBrush}"
-                       HorizontalAlignment="Center"
-                       Visibility="Collapsed" />
-
             <Grid Grid.Column="1" x:Name="WeekHeaderGrid">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -129,7 +122,10 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <TextBlock Text="{Binding}"
+                        <TextBlock Text="{Binding Number}"
+                                   ToolTip="{Binding ToolTip}"
+                                   ToolTipService.InitialShowDelay="0"
+                                   ToolTipService.ShowDuration="60000"
                                    FontSize="{DynamicResource FontSizeSecondary}"
                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                    HorizontalAlignment="Center"

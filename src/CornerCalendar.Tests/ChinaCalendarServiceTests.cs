@@ -64,6 +64,35 @@ public class ChinaCalendarServiceTests
     }
 
     [Fact]
+    public void 传统农历节日优先于纪念日()
+    {
+        Dictionary<DateTime, ChinaCalendarService.ChinaCalendarDayInfoBuilder> builders = new();
+        DateTime date = new(2026, 8, 19);
+
+        ChinaCalendarService.AddFestivalInfo(builders, new List<CalendarEvent>
+        {
+            new(
+                "『七夕节』",
+                date,
+                date.AddDays(1),
+                true,
+                "中国日历-节日纪念日",
+                "#000000",
+                Description: "七夕节（农历七月初七），中国民间的传统节日。"),
+            new(
+                "『中国医师节』",
+                date,
+                date.AddDays(1),
+                true,
+                "中国日历-节日纪念日",
+                "#000000",
+                Description: "中国医师节（8月19日）。")
+        });
+
+        Assert.Equal("七夕节", builders[date].Build().LunarFestival);
+    }
+
+    [Fact]
     public void 解析农历订阅描述中的宜忌()
     {
         (string suitable, string avoid) = ChinaCalendarService.ParseSuitableAvoid(
@@ -98,5 +127,19 @@ public class ChinaCalendarServiceTests
         CalendarEvent cleaned = ChinaCalendarService.CleanEventTitle(calendarEvent);
 
         Assert.Equal("「护士节」", cleaned.Title);
+    }
+
+    [Fact]
+    public void 法定节假日和节日源的同名全天事件只保留一条()
+    {
+        DateTime date = new(2026, 9, 25);
+        List<CalendarEvent> result = ChinaCalendarService.CleanAndDeduplicateEvents(new List<CalendarEvent>
+        {
+            new("『中秋节 假期』 第1天/共3天", date, date.AddDays(1), true, "中国日历-法定节假日", "#000000"),
+            new("『中秋节』", date, date.AddDays(1), true, "中国日历-节日纪念日", "#000000")
+        });
+
+        Assert.Single(result);
+        Assert.Equal("『中秋节』", result[0].Title);
     }
 }

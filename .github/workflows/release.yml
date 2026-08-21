@@ -95,7 +95,20 @@ jobs:
       - name: 创建 GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: CornerCalendar v${{ steps.read_version.outputs.version }}
+          name: v${{ steps.read_version.outputs.version }}
+          body: |
+            ## 变更内容
+
+            - 日历数据统一使用 ICS，内置中国日历包含法定节假日、节日纪念日、二十四节气和农历，并移除 Windows 系统日历数据源。
+            - 天气支持后台预加载、本地缓存和 30/60/120/240 分钟刷新设置，默认 120 分钟。
+            - 任务栏时间只覆盖主显示器，其他显示器保留 Windows 原生任务栏时间和通知中心。
+            - 设置窗口补充 ICS 地址、天气刷新频率、关于和更新页面；配置、缓存和错误日志统一保存到 `%LOCALAPPDATA%\\CornerCalendar\\`。
+            - 优化天气详情、七天天气、日历提示、主题和托盘菜单显示。
+
+            ## 发布包
+
+            - `self-contained`：包含 .NET 运行时。
+            - `framework`：需要安装 .NET 8 Desktop Runtime。
           files: |
             release/*.zip
-          generate_release_notes: true
+          generate_release_notes: false

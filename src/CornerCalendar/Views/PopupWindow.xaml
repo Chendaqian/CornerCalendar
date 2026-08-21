@@ -36,7 +36,10 @@
                     Margin="10,8,10,0"
                     Padding="10,7"
                     Background="{DynamicResource HoverBrush}"
-                    CornerRadius="8">
+                    CornerRadius="8"
+                    Cursor="Hand"
+                    PreviewMouseLeftButtonUp="OnWeatherSectionPreviewMouseLeftButtonUp"
+                    ToolTipService.InitialShowDelay="200">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="34" />
@@ -110,11 +113,10 @@
                         Background="{DynamicResource SeparatorBrush}"
                         Margin="16,5,16,5" />
 
-                <!-- 标题栏：左侧"近期事件"，右侧置顶+刷新+齿轮+关闭 -->
+            <!-- 标题栏：左侧"近期事件"，右侧刷新+齿轮+关闭 -->
                 <Grid Grid.Row="1" Margin="16,5,10,5">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
@@ -127,25 +129,8 @@
                                Foreground="{DynamicResource TextSecondaryBrush}"
                                VerticalAlignment="Center" />
 
-                    <!-- 置顶按钮：置顶后保持最前、失焦不再自动隐藏 -->
-                    <Button Grid.Column="1"
-                            x:Name="PinButton"
-                            Width="31" Height="31"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Cursor="Hand"
-                            Click="OnPinClick"
-                            ToolTip="置顶"
-                            Margin="0,0,3,0">
-                        <Path x:Name="PinIcon"
-                              Data="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z"
-                              Fill="{DynamicResource TextSecondaryBrush}"
-                              Stretch="Uniform"
-                              Width="18" Height="18" />
-                    </Button>
-
                     <!-- 刷新按钮 -->
-                    <Button Grid.Column="2"
+                    <Button Grid.Column="1"
                             x:Name="RefreshButton"
                             Width="31" Height="31"
                             Background="Transparent"
@@ -161,7 +146,7 @@
                     </Button>
 
                     <!-- 齿轮图标按钮 -->
-                    <Button Grid.Column="3"
+                    <Button Grid.Column="2"
                             x:Name="SettingsButton"
                             Width="31" Height="31"
                             Background="Transparent"
@@ -176,7 +161,7 @@
                     </Button>
 
                     <!-- 关闭按钮：只有显式点击这里才隐藏主窗口 -->
-                    <Button Grid.Column="4"
+                    <Button Grid.Column="3"
                             x:Name="ClosePopupButton"
                             Width="31" Height="31"
                             Background="Transparent"

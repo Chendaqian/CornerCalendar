@@ -168,6 +168,8 @@
                     <ListBoxItem Content="日历" />
                     <ListBoxItem Content="天气" />
                     <ListBoxItem Content="显示" />
+                    <ListBoxItem Content="更新" />
+                    <ListBoxItem Content="关于" />
                 </ListBox>
             </Border>
 
@@ -184,7 +186,7 @@
                         <TextBlock Text="颜色主题" FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
                         <ComboBox x:Name="ThemeComboBox" Margin="0,0,0,20" Padding="8,6"
-                                  SelectedIndex="0">
+                                  SelectedIndex="1">
                             <ComboBoxItem Content="跟随系统" />
                             <ComboBoxItem Content="浅色" />
                             <ComboBoxItem Content="深色" />
@@ -233,15 +235,6 @@
                                    FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,18" />
 
-                        <TextBlock Text="日历数据源" FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
-                        <ComboBox x:Name="DataSourceComboBox" Margin="0,0,0,8" Padding="8,6"
-                                  SelectedIndex="0" SelectionChanged="OnDataSourceChanged">
-                            <ComboBoxItem Content="系统日历" />
-                            <ComboBoxItem Content="ICS 订阅链接" />
-                            <ComboBoxItem Content="两者都用" />
-                        </ComboBox>
-
                         <TextBlock FontSize="{DynamicResource FontSizeFootnote}"
                                    Foreground="{DynamicResource TextDisabledBrush}"
                                    TextWrapping="Wrap"
@@ -255,7 +248,10 @@
                             <Run Text=" 的远程 ICS 订阅；网络不可用时使用已缓存的数据。" />
                         </TextBlock>
 
-                        <StackPanel x:Name="IcsPanel" Visibility="Collapsed" Margin="0,0,0,20">
+                        <TextBlock Text="我的 ICS 订阅"
+                                   FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
+                        <StackPanel x:Name="IcsPanel" Visibility="Visible" Margin="0,0,0,20">
                             <ItemsControl x:Name="IcsUrlList" Margin="0,0,0,8">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -359,13 +355,45 @@
                                            VerticalAlignment="Center" />
                                 <ComboBox Grid.Column="1" x:Name="IcsRefreshCombo"
                                           Margin="8,0,0,0" Padding="6,4"
-                                          SelectedIndex="1" HorizontalAlignment="Left">
+                                          SelectedIndex="3" HorizontalAlignment="Left">
                                     <ComboBoxItem Content="10 分钟" />
                                     <ComboBoxItem Content="30 分钟" />
                                     <ComboBoxItem Content="60 分钟" />
                                     <ComboBoxItem Content="120 分钟" />
                                 </ComboBox>
                             </Grid>
+
+                            <TextBlock Text="内置 ICS"
+                                       FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,18,0,8" />
+                            <TextBlock Text="以下数据由程序内置并自动加载，仅展示地址，不能删除。"
+                                       FontSize="{DynamicResource FontSizeFootnote}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap" Margin="0,0,0,8" />
+                            <ItemsControl x:Name="BuiltInIcsList">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderThickness="1"
+                                                BorderBrush="{DynamicResource SeparatorBrush}"
+                                                CornerRadius="6"
+                                                Padding="8,6"
+                                                Margin="0,0,0,6">
+                                            <TextBlock TextWrapping="Wrap"
+                                                       FontSize="{DynamicResource FontSizeSecondary}">
+                                                <Run Text="{Binding Name}"
+                                                     Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                <Run Text="："
+                                                     Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                <Hyperlink Foreground="{DynamicResource TodayAccentBrush}"
+                                                           Cursor="Hand"
+                                                           Click="OnBuiltInIcsLinkClick">
+                                                    <Run Text="{Binding Url}" />
+                                                </Hyperlink>
+                                            </TextBlock>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
                     </StackPanel>
 
@@ -392,6 +420,19 @@
                                    FontSize="{DynamicResource FontSizeFootnote}"
                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                    TextWrapping="Wrap" Margin="0,0,0,12" />
+
+                        <TextBlock Text="天气刷新频率" FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
+                        <ComboBox x:Name="WeatherRefreshCombo"
+                                  Margin="0,0,0,20"
+                                  Padding="8,6"
+                                  SelectedIndex="2"
+                                  HorizontalAlignment="Left">
+                            <ComboBoxItem Content="30 分钟" />
+                            <ComboBoxItem Content="60 分钟" />
+                            <ComboBoxItem Content="120 分钟" />
+                            <ComboBoxItem Content="240 分钟" />
+                        </ComboBox>
 
                         <ItemsControl x:Name="WeatherLocationList" Margin="0,0,0,8">
                             <ItemsControl.ItemTemplate>
@@ -472,7 +513,7 @@
                         <TextBlock Text="近期事件显示范围" FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
                         <ComboBox x:Name="UpcomingDaysCombo" Margin="0,0,0,24" Padding="8,6"
-                                  SelectedIndex="1">
+                                  SelectedIndex="2">
                             <ComboBoxItem Content="1 天" />
                             <ComboBoxItem Content="3 天" />
                             <ComboBoxItem Content="7 天" />
@@ -522,6 +563,72 @@
                                            Margin="0,6,0,0" />
                             </StackPanel>
                         </Border>
+                    </StackPanel>
+
+                    <!-- 更新 -->
+                    <StackPanel x:Name="UpdatePanel" Visibility="Collapsed">
+                        <TextBlock Text="更新"
+                                   FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,18" />
+                        <TextBlock Text="检查 GitHub Releases 中的最新版本。"
+                                   FontSize="{DynamicResource FontSizeBody}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap" Margin="0,0,0,14" />
+                        <TextBlock FontSize="{DynamicResource FontSizeBody}"
+                                   Margin="0,0,0,16">
+                            <Run Text="Release 页面："
+                                 Foreground="{DynamicResource TextSecondaryBrush}" />
+                            <Hyperlink Click="OnReleaseLinkClick" Cursor="Hand">
+                                <Run Text="打开 GitHub Releases"
+                                     Foreground="{DynamicResource TodayAccentBrush}" />
+                            </Hyperlink>
+                        </TextBlock>
+                        <Button x:Name="CheckUpdateButton"
+                                Content="检查更新"
+                                HorizontalAlignment="Left"
+                                Padding="14,7"
+                                Background="{DynamicResource TodayAccentBrush}"
+                                Foreground="White"
+                                BorderThickness="0"
+                                Cursor="Hand"
+                                Click="OnCheckUpdateClick" />
+                        <TextBlock x:Name="UpdateStatusText"
+                                   FontSize="{DynamicResource FontSizeFootnote}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,12,0,0" />
+                    </StackPanel>
+
+                    <!-- 关于 -->
+                    <StackPanel x:Name="AboutPanel" Visibility="Collapsed">
+                        <TextBlock Text="关于"
+                                   FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,18" />
+                        <TextBlock x:Name="AboutVersionText"
+                                   FontSize="{DynamicResource FontSizeBody}"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   Margin="0,0,0,8" />
+                        <TextBlock Text="作者：Chendaqian"
+                                   FontSize="{DynamicResource FontSizeBody}"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   Margin="0,0,0,18" />
+                        <TextBlock Text="开源库"
+                                   FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
+                        <TextBlock Text="CommunityToolkit.Mvvm 8.3.0&#10;Hardcodet.NotifyIcon.Wpf 2.0.1&#10;Ical.Net 4.3.1&#10;lunar-csharp 1.6.8"
+                                   FontSize="{DynamicResource FontSizeBody}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,18" />
+                        <TextBlock Text="项目地址"
+                                   FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
+                        <TextBlock FontSize="{DynamicResource FontSizeBody}">
+                            <Hyperlink Click="OnProjectLinkClick" Cursor="Hand">
+                                <Run Text="github.com/Chendaqian/CornerCalendar"
+                                     Foreground="{DynamicResource TodayAccentBrush}" />
+                            </Hyperlink>
+                        </TextBlock>
                     </StackPanel>
                 </Grid>
             </ScrollViewer>

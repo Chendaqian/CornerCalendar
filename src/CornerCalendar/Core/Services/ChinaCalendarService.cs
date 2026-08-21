@@ -2,6 +2,8 @@ using CornerCalendar.Core.Models;
 
 namespace CornerCalendar.Core.Services;
 
+public sealed record BuiltInIcsSource(string Name, string Url);
+
 /// <summary>
 /// YangH9/ChinaCalendar 远程 ICS 数据源。
 /// 数据地址和类型以其 README 中公开的订阅文件为准，不在程序中内置年度节假日数据。
@@ -12,6 +14,14 @@ public sealed class ChinaCalendarService : ICalendarService, IChinaCalendarDataP
     public const string FestivalUrl = "https://yangh9.github.io/ChinaCalendar/cal_festival.ics";
     public const string SolarTermUrl = "https://yangh9.github.io/ChinaCalendar/cal_solarTerm.ics";
     public const string LunarUrl = "https://yangh9.github.io/ChinaCalendar/cal_lunar.ics";
+
+    public static IReadOnlyList<BuiltInIcsSource> BuiltInSources { get; } =
+    [
+        new("中国日历-法定节假日", HolidayUrl),
+        new("中国日历-节日纪念日", FestivalUrl),
+        new("中国日历-二十四节气", SolarTermUrl),
+        new("中国日历-农历", LunarUrl)
+    ];
 
     private const string HolidayCalendarName = "中国日历-法定节假日";
     private const string FestivalCalendarName = "中国日历-节日纪念日";
@@ -39,12 +49,9 @@ public sealed class ChinaCalendarService : ICalendarService, IChinaCalendarDataP
 
         await Task.WhenAll(holidayTask, festivalTask, solarTermTask);
 
-        return holidayTask.Result
+        return CleanAndDeduplicateEvents(holidayTask.Result
             .Concat(festivalTask.Result)
-            .Concat(solarTermTask.Result)
-            .Select(CleanEventTitle)
-            .OrderBy(e => e.StartTime)
-            .ToList();
+            .Concat(solarTermTask.Result));
     }
 
     public async Task<IReadOnlyDictionary<DateTime, ChinaCalendarDayInfo>> GetDayInfoAsync(
@@ -130,9 +137,37 @@ public sealed class ChinaCalendarService : ICalendarService, IChinaCalendarDataP
         foreach (CalendarEvent calendarEvent in events)
         {
             string title = CleanHolidayName(RemoveBrackets(calendarEvent.Title));
-            if (!string.IsNullOrWhiteSpace(title))
-                GetBuilder(builders, calendarEvent.StartTime.Date).LunarFestival = title;
+            if (string.IsNullOrWhiteSpace(title))
+                continue;
+
+            ChinaCalendarDayInfoBuilder builder = GetBuilder(builders, calendarEvent.StartTime.Date);
+            int priority = GetFestivalPriority(title, calendarEvent.Description);
+            if (priority > builder.LunarFestivalPriority)
+            {
+                builder.LunarFestival = title;
+                builder.LunarFestivalPriority = priority;
+            }
         }
+    }
+
+    /// <summary>
+    /// 传统农历节日优先于纪念日。优先级只用于同一天“至多显示一个”标签，
+    /// 不改变 ICS 数据本身，也不新增本地年度节日数据。
+    /// </summary>
+    private static int GetFestivalPriority(string title, string? description)
+    {
+        if (description is not null
+            && (description.Contains("传统节日", StringComparison.Ordinal)
+                || description.Contains("农历", StringComparison.Ordinal))
+            || title.Contains("七夕", StringComparison.Ordinal)
+            || title.Contains("元宵", StringComparison.Ordinal)
+            || title.Contains("重阳", StringComparison.Ordinal)
+            || title.Contains("除夕", StringComparison.Ordinal))
+        {
+            return 2;
+        }
+
+        return 1;
     }
 
     internal static void AddSolarTermInfo(
@@ -284,6 +319,18 @@ public sealed class ChinaCalendarService : ICalendarService, IChinaCalendarDataP
             : calendarEvent with { Title = title };
     }
 
+    /// <summary>
+    /// 清理中国日历各订阅源的标题，并合并同日重复的全天节日事件。
+    /// 法定节假日源和节日源可能同时提供“中秋节”，应只在日程中展示一次。
+    /// </summary>
+    internal static List<CalendarEvent> CleanAndDeduplicateEvents(IEnumerable<CalendarEvent> events)
+    {
+        List<CalendarEvent> cleaned = events.Select(CleanEventTitle).ToList();
+        return IcsCalendarService.DeduplicateAllDayEvents(cleaned)
+            .OrderBy(e => e.StartTime)
+            .ToList();
+    }
+
     private static int ParseHolidayDayIndex(string value)
     {
         int start = value.IndexOf('第');
@@ -324,6 +371,7 @@ public sealed class ChinaCalendarService : ICalendarService, IChinaCalendarDataP
         public int HolidayDayIndex { get; set; }
         public string SuitableActivities { get; set; } = "";
         public string AvoidActivities { get; set; } = "";
+        public int LunarFestivalPriority { get; set; }
 
         public ChinaCalendarDayInfo Build() => new(
             LunarDate,

@@ -22,6 +22,6 @@ public class TaskbarClockFormatterTests
 
         string result = TaskbarClockFormatter.Format(dateTime, " ");
 
-        Assert.Equal($"13:05{Environment.NewLine}2026/8/18", result);
+        Assert.Equal($"13:05:00{Environment.NewLine}2026/08/18", result);
     }
 }

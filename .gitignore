@@ -23,3 +23,4 @@ build_output.txt
 Thumbs.db
 Desktop.ini
 .DS_Store
+/src/CornerCalendar/build-verify

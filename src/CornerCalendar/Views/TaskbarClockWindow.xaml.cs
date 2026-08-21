@@ -25,17 +25,20 @@ public partial class TaskbarClockWindow : Window
     private const uint SWP_SHOWWINDOW = 0x0040;
     private static readonly nint HwndTopmost = new(-1);
 
+    private readonly nint _taskbarHandle;
     private readonly HashSet<nint> _hiddenClockHandles = new();
     private RECT _clockRect;
     private RECT _taskbarRect;
     private bool _hasClockRect;
     private bool _hasTaskbarRect;
     private bool _isClosed;
+    private System.Windows.Media.Brush? _clockTextBrush;
 
-    public event RoutedEventHandler? ClockClicked;
+    public event Action<nint>? ClockClicked;
 
-    public TaskbarClockWindow()
+    public TaskbarClockWindow(nint taskbarHandle)
     {
+        _taskbarHandle = taskbarHandle;
         InitializeComponent();
         ClockText.SetResourceReference(
             System.Windows.Controls.TextBlock.ForegroundProperty, "TaskbarClockTextBrush");
@@ -67,7 +70,7 @@ public partial class TaskbarClockWindow : Window
     private void OnMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
-        ClockClicked?.Invoke(this, new RoutedEventArgs());
+        ClockClicked?.Invoke(GetTaskbarMonitor());
     }
 
     private void OnMouseRightButtonUp(object sender, MouseButtonEventArgs e)
@@ -144,7 +147,9 @@ public partial class TaskbarClockWindow : Window
 
     private void EnsureSystemClockState()
     {
-        nint taskbar = FindWindow("Shell_TrayWnd", null);
+        nint taskbar = _taskbarHandle != nint.Zero
+            ? _taskbarHandle
+            : FindWindow("Shell_TrayWnd", null);
         nint clock = FindClockWindow(taskbar);
 
         if (taskbar != nint.Zero && GetWindowRect(taskbar, out RECT currentTaskbarRect))
@@ -153,31 +158,39 @@ public partial class TaskbarClockWindow : Window
             _hasTaskbarRect = true;
         }
 
-        System.Windows.Media.Brush? taskbarBrush = TryGetTaskbarBackgroundBrush();
-
         if (clock != nint.Zero && IsWindow(clock))
         {
-            _hiddenClockHandles.Add(clock);
+            bool isFirstHide = _hiddenClockHandles.Add(clock);
 
             if (GetWindowRect(clock, out RECT rect))
             {
                 _clockRect = rect;
                 _hasClockRect = true;
+                // 必须在隐藏原生时钟前读取屏幕像素，否则隐藏后只剩覆盖层，
+                // 无法再判断当前显示器实际使用的是深色还是浅色文字。
+                if (isFirstHide)
+                    _clockTextBrush = TryGetClockTextBrush(rect);
             }
+
+            System.Windows.Media.Brush? taskbarBrush = TryGetTaskbarBackgroundBrush();
 
             ShowWindow(clock, SW_HIDE);
             ClockSurface.Background = System.Windows.Media.Brushes.Transparent;
-            ApplyClockTextContrast(taskbarBrush);
+            if (_clockTextBrush is not null)
+                ClockText.Foreground = _clockTextBrush;
+            else
+                ApplyClockTextContrast(taskbarBrush);
             return;
         }
 
         _hasClockRect = false;
+        System.Windows.Media.Brush? fallbackTaskbarBrush = TryGetTaskbarBackgroundBrush();
         // 没有独立时钟句柄时，使用任务栏背景色遮盖系统时间。
         // 取色失败时不能使用透明背景，否则系统原生时间会透出来。
-        if (taskbarBrush is not null)
+        if (fallbackTaskbarBrush is not null)
         {
-            ClockSurface.Background = taskbarBrush;
-            ApplyClockTextContrast(taskbarBrush);
+            ClockSurface.Background = fallbackTaskbarBrush;
+            ApplyClockTextContrast(fallbackTaskbarBrush);
         }
         else
         {
@@ -213,8 +226,12 @@ public partial class TaskbarClockWindow : Window
         if (!_hasTaskbarRect || _taskbarRect.Right <= _taskbarRect.Left)
             return null;
 
-        int sampleX = _taskbarRect.Left + Math.Min(2, _taskbarRect.Right - _taskbarRect.Left - 1);
-        int sampleY = _taskbarRect.Top + Math.Max(1, (_taskbarRect.Bottom - _taskbarRect.Top) / 2);
+        int sampleX = _hasClockRect
+            ? Math.Max(_taskbarRect.Left, _clockRect.Left - 4)
+            : _taskbarRect.Right - Math.Max(2, Math.Min(8, _taskbarRect.Right - _taskbarRect.Left - 1));
+        int sampleY = _hasClockRect
+            ? (_clockRect.Top + _clockRect.Bottom) / 2
+            : _taskbarRect.Bottom - Math.Max(2, (_taskbarRect.Bottom - _taskbarRect.Top) / 2);
         nint screenDc = GetDC(nint.Zero);
         if (screenDc == nint.Zero)
             return null;
@@ -222,7 +239,7 @@ public partial class TaskbarClockWindow : Window
         try
         {
             uint pixel = GetPixel(screenDc, sampleX, sampleY);
-            if (pixel == 0xFFFFFFFF)
+            if (pixel == 0xFFFFFFFF && Marshal.GetLastWin32Error() != 0)
                 return null;
 
             byte red = (byte)(pixel & 0xFF);
@@ -230,6 +247,76 @@ public partial class TaskbarClockWindow : Window
             byte blue = (byte)((pixel >> 16) & 0xFF);
             System.Windows.Media.SolidColorBrush brush = new(
                 System.Windows.Media.Color.FromRgb(red, green, blue));
+            brush.Freeze();
+            return brush;
+        }
+        finally
+        {
+            ReleaseDC(nint.Zero, screenDc);
+        }
+    }
+
+    private System.Windows.Media.Brush? TryGetClockTextBrush(RECT clockRect)
+    {
+        int width = clockRect.Right - clockRect.Left;
+        int height = clockRect.Bottom - clockRect.Top;
+        if (width <= 0 || height <= 0)
+            return null;
+
+        nint screenDc = GetDC(nint.Zero);
+        if (screenDc == nint.Zero)
+            return null;
+
+        try
+        {
+            Dictionary<uint, int> pixels = new();
+            for (int y = clockRect.Top; y < clockRect.Bottom; y++)
+            {
+                for (int x = clockRect.Left; x < clockRect.Right; x++)
+                {
+                    uint pixel = GetPixel(screenDc, x, y);
+
+                    // 将相邻的抗锯齿颜色归并，避免单个边缘像素干扰主色判断。
+                    byte red = (byte)(pixel & 0xFF);
+                    byte green = (byte)((pixel >> 8) & 0xFF);
+                    byte blue = (byte)((pixel >> 16) & 0xFF);
+                    uint quantized = (uint)((red / 16) << 16 | (green / 16) << 8 | blue / 16);
+                    pixels[quantized] = pixels.TryGetValue(quantized, out int count) ? count + 1 : 1;
+                }
+            }
+
+            if (pixels.Count < 2)
+                return null;
+
+            uint background = pixels.OrderByDescending(pair => pair.Value).First().Key;
+            int backgroundRed = (int)((background >> 16) & 0xFF) * 16 + 8;
+            int backgroundGreen = (int)((background >> 8) & 0xFF) * 16 + 8;
+            int backgroundBlue = (int)(background & 0xFF) * 16 + 8;
+
+            KeyValuePair<uint, int>? textPixel = pixels
+                .Where(pair =>
+                {
+                    int red = (int)((pair.Key >> 16) & 0xFF) * 16 + 8;
+                    int green = (int)((pair.Key >> 8) & 0xFF) * 16 + 8;
+                    int blue = (int)(pair.Key & 0xFF) * 16 + 8;
+                    int distance = Math.Abs(red - backgroundRed)
+                        + Math.Abs(green - backgroundGreen)
+                        + Math.Abs(blue - backgroundBlue);
+                    return distance >= 90;
+                })
+                .OrderByDescending(pair => pair.Value)
+                .Cast<KeyValuePair<uint, int>?>()
+                .FirstOrDefault();
+
+            if (textPixel is null)
+                return null;
+
+            uint color = textPixel.Value.Key;
+            byte textRed = (byte)Math.Min(255, ((color >> 16) & 0xFF) * 16 + 8);
+            byte textGreen = (byte)Math.Min(255, ((color >> 8) & 0xFF) * 16 + 8);
+            byte textBlue = (byte)Math.Min(255, (color & 0xFF) * 16 + 8);
+            System.Windows.Media.SolidColorBrush brush = new(
+                System.Windows.Media.Color.FromRgb(textRed, textGreen, textBlue));
             brush.Freeze();
             return brush;
         }
@@ -283,10 +370,52 @@ public partial class TaskbarClockWindow : Window
         return found;
     }
 
+    public static IReadOnlyList<nint> FindTaskbarWindows()
+    {
+        List<nint> taskbars = new();
+        EnumWindows((hwnd, _) =>
+        {
+            StringBuilder className = new(128);
+            GetClassName(hwnd, className, className.Capacity);
+            string name = className.ToString();
+            if (name is "Shell_TrayWnd" or "Shell_SecondaryTrayWnd")
+                taskbars.Add(hwnd);
+            return true;
+        }, nint.Zero);
+
+        return taskbars;
+    }
+
+    public static nint FindPrimaryTaskbarWindow()
+    {
+        foreach (nint taskbar in FindTaskbarWindows())
+        {
+            nint monitor = MonitorFromWindow(taskbar, MONITOR_DEFAULTTONEAREST);
+            MONITORINFO monitorInfo = new() { cbSize = Marshal.SizeOf<MONITORINFO>() };
+            if (monitor != nint.Zero && GetMonitorInfo(monitor, ref monitorInfo)
+                && (monitorInfo.Flags & MONITORINFOF_PRIMARY) != 0)
+            {
+                return taskbar;
+            }
+        }
+
+        // 主任务栏正常情况下就是 Shell_TrayWnd；枚举失败时仍只回退到它。
+        return FindWindow("Shell_TrayWnd", null);
+    }
+
+    private nint GetTaskbarMonitor()
+    {
+        nint monitor = MonitorFromWindow(_taskbarHandle, MONITOR_DEFAULTTONEAREST);
+        return monitor;
+    }
+
     private delegate bool EnumWindowProc(nint hwnd, nint lParam);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern nint FindWindow(string? lpClassName, string? lpWindowName);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumWindows(EnumWindowProc callback, nint lParam);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern nint FindWindowEx(nint parentHandle, nint childAfter, string? className, string? windowTitle);
@@ -306,6 +435,15 @@ public partial class TaskbarClockWindow : Window
     [DllImport("user32.dll")]
     private static extern bool IsWindow(nint hwnd);
 
+    [DllImport("user32.dll")]
+    private static extern nint MonitorFromWindow(nint hwnd, uint flags);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetMonitorInfo(nint monitor, ref MONITORINFO monitorInfo);
+
+    private const uint MONITOR_DEFAULTTONEAREST = 2;
+    private const uint MONITORINFOF_PRIMARY = 1;
+
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool SetWindowPos(
         nint hwnd,
@@ -322,7 +460,7 @@ public partial class TaskbarClockWindow : Window
     [DllImport("user32.dll")]
     private static extern int ReleaseDC(nint hwnd, nint dc);
 
-    [DllImport("gdi32.dll")]
+    [DllImport("gdi32.dll", SetLastError = true)]
     private static extern uint GetPixel(nint dc, int x, int y);
 
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
@@ -338,5 +476,14 @@ public partial class TaskbarClockWindow : Window
         public int Top;
         public int Right;
         public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MONITORINFO
+    {
+        public int cbSize;
+        public RECT Monitor;
+        public RECT Work;
+        public uint Flags;
     }
 }

@@ -104,27 +104,25 @@ public partial class DayCell : UserControl
             tooltipLines.Add("调休补班");
         cell.ToolTip = string.Join(Environment.NewLine, tooltipLines);
 
-        // 事件圆点 - 最多3个，按日历去重显示不同颜色
+        // 事件圆点 - 最多3个，按事件显示；同一数据源的多个事件也分别显示。
         if (day.HasEvents && day.Events.Count > 0)
         {
-            // 按颜色去重，最多3种颜色
-            List<string> distinctColors = day.Events
-                .Select(e => e.Color)
-                .Distinct()
+            List<string> eventColors = day.Events
                 .Take(3)
+                .Select(e => e.Color)
                 .ToList();
 
             cell.EventDots.Visibility = Visibility.Visible;
             System.Windows.Shapes.Ellipse[] dots = new[] { cell.Dot1, cell.Dot2, cell.Dot3 };
             for (int i = 0; i < dots.Length; i++)
             {
-                if (i < distinctColors.Count)
+                if (i < eventColors.Count)
                 {
                     dots[i].Visibility = Visibility.Visible;
                     try
                     {
                         SolidColorBrush brush = new SolidColorBrush(
-                            (Color)ColorConverter.ConvertFromString(distinctColors[i]));
+                            (Color)ColorConverter.ConvertFromString(eventColors[i]));
                         brush.Freeze();
                         dots[i].Fill = brush;
                     }

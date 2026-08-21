@@ -15,12 +15,13 @@ public partial class App : Application
     private const string SingleInstanceMutexName = "Local\\CornerCalendar.SingleInstance";
     private Mutex? _instanceMutex;
     private TaskbarIcon? _trayIcon;
-    private TaskbarClockWindow? _taskbarClock;
+    private readonly List<TaskbarClockWindow> _taskbarClocks = new();
     private PopupWindow? _popup;
     private SettingsWindow? _settingsWindow;
-    private SystemCalendarInterceptor? _interceptor;
     private DispatcherTimer? _midnightTimer;
     private DispatcherTimer? _clockTimer;
+    private DispatcherTimer? _weatherTimer;
+    private CancellationTokenSource? _weatherRefreshCts;
     private bool _restartRequested;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -58,6 +59,7 @@ public partial class App : Application
         AppSettings settings = AppSettings.Load();
         ThemeHelper.ApplyTheme(settings.ThemeMode);
         ThemeHelper.StartSystemThemeTracking();
+        StartWeatherBackgroundRefresh();
 
         InitializeTaskbarClock();
 
@@ -66,19 +68,6 @@ public partial class App : Application
 
         // 托盘图标和任务栏时钟覆盖层共用同样的右键菜单
         _trayIcon.ContextMenu = CreateContextMenu();
-        if (_taskbarClock != null)
-            _taskbarClock.ContextMenu = CreateContextMenu();
-
-        // 启动系统日历拦截器：点击任务栏时钟时替换为我们的面板
-        try
-        {
-            _interceptor = new SystemCalendarInterceptor(Dispatcher);
-            _interceptor.Start(ShowPopup);
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"CornerCalendar: Interceptor failed: {ex.Message}");
-        }
     }
 
     /// <summary>
@@ -104,11 +93,8 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            string logPath = System.IO.Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "CornerCalendar_error.log");
-            System.IO.File.WriteAllText(logPath,
-                $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}]\n{ex}\n\n--- InnerException ---\n{ex.InnerException}");
-            MessageBox.Show($"错误已写入桌面 CornerCalendar_error.log", "CornerCalendar 错误",
+            ErrorLog.Write("ShowSettings", ex);
+            MessageBox.Show("错误已写入 %LOCALAPPDATA%\\CornerCalendar\\error.log", "CornerCalendar 错误",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -129,16 +115,14 @@ public partial class App : Application
 
         MenuItem settingsItem = new()
         {
-            Header = "设置",
-            Icon = CreateMenuIcon(SettingsIconGeometry)
+            Header = CreateMenuHeader("设置", SettingsIconGeometry)
         };
         settingsItem.Click += (s, args) => OpenSettings();
         menu.Items.Add(settingsItem);
 
         MenuItem restartItem = new()
         {
-            Header = "重启",
-            Icon = CreateMenuIcon(RestartIconGeometry)
+            Header = CreateMenuHeader("重启", RestartIconGeometry)
         };
         restartItem.Click += (s, args) => RestartApplication();
         menu.Items.Add(restartItem);
@@ -147,8 +131,7 @@ public partial class App : Application
 
         MenuItem exitItem = new()
         {
-            Header = "退出",
-            Icon = CreateMenuIcon(ExitIconGeometry)
+            Header = CreateMenuHeader("退出", ExitIconGeometry)
         };
         exitItem.Click += (s, args) => Shutdown();
         menu.Items.Add(exitItem);
@@ -160,12 +143,16 @@ public partial class App : Application
     {
         try
         {
-            _taskbarClock = new TaskbarClockWindow
+            // 只覆盖 Windows 标记的主显示器任务栏，副显示器保留系统原生时钟和控制中心。
+            nint primaryTaskbar = TaskbarClockWindow.FindPrimaryTaskbarWindow();
+            TaskbarClockWindow clock = new(primaryTaskbar)
             {
                 ContextMenu = CreateContextMenu()
             };
-            _taskbarClock.ClockClicked += (s, e) => TogglePopup();
-            _taskbarClock.Show();
+            clock.ClockClicked += monitor => TogglePopup(monitor);
+            clock.Show();
+            _taskbarClocks.Add(clock);
+
             RefreshTaskbarClock();
 
             _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -175,13 +162,86 @@ public partial class App : Application
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"CornerCalendar: Taskbar clock overlay failed: {ex.Message}");
-            _taskbarClock = null;
+            foreach (TaskbarClockWindow clock in _taskbarClocks)
+                clock.Close();
+            _taskbarClocks.Clear();
         }
     }
 
     private void OnClockTick(object? sender, EventArgs e)
     {
         RefreshTaskbarClock();
+    }
+
+    private void StartWeatherBackgroundRefresh()
+    {
+        _weatherRefreshCts = new CancellationTokenSource();
+        _ = RefreshWeatherCacheAsync(_weatherRefreshCts.Token);
+
+        _weatherTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMinutes(GetWeatherRefreshMinutes())
+        };
+        _weatherTimer.Tick += OnWeatherTimerTick;
+        _weatherTimer.Start();
+    }
+
+    private void RestartWeatherBackgroundRefresh()
+    {
+        StopWeatherBackgroundRefresh();
+        StartWeatherBackgroundRefresh();
+    }
+
+    private void StopWeatherBackgroundRefresh()
+    {
+        if (_weatherTimer != null)
+        {
+            _weatherTimer.Stop();
+            _weatherTimer.Tick -= OnWeatherTimerTick;
+            _weatherTimer = null;
+        }
+
+        if (_weatherRefreshCts != null)
+        {
+            _weatherRefreshCts.Cancel();
+            _weatherRefreshCts.Dispose();
+            _weatherRefreshCts = null;
+        }
+    }
+
+    private static int GetWeatherRefreshMinutes()
+    {
+        int value = AppSettings.Current.WeatherRefreshMinutes;
+        return value is 30 or 60 or 120 or 240 ? value : 120;
+    }
+
+    private void OnWeatherTimerTick(object? sender, EventArgs e)
+    {
+        if (_weatherRefreshCts != null)
+            _ = RefreshWeatherCacheAsync(_weatherRefreshCts.Token);
+    }
+
+    private async Task RefreshWeatherCacheAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            AppSettings settings = AppSettings.Current;
+            string[] locations = settings.WeatherLocations?.Count > 0
+                ? settings.WeatherLocations.ToArray()
+                : new[] { string.Empty };
+            await WeatherService.RefreshAllAsync(
+                locations,
+                settings.WeatherApiUrl,
+                GetWeatherRefreshMinutes(),
+                cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"CornerCalendar: Background weather refresh failed: {ex.Message}");
+        }
     }
 
     public static void RefreshTaskbarClock(string? format = null)
@@ -196,14 +256,21 @@ public partial class App : Application
             app._popup?.RefreshSettings();
     }
 
+    public static void RefreshWeatherSettings()
+    {
+        if (Current is App app)
+            app.RestartWeatherBackgroundRefresh();
+    }
+
     private void RefreshTaskbarClockCore(string? format = null)
     {
-        if (_taskbarClock == null)
+        if (_taskbarClocks.Count == 0)
             return;
 
         string effectiveFormat = format ?? AppSettings.Current.TaskbarTimeFormat;
         string text = TaskbarClockFormatter.Format(DateTime.Now, effectiveFormat);
-        _taskbarClock.UpdateText(text);
+        foreach (TaskbarClockWindow clock in _taskbarClocks)
+            clock.UpdateText(text);
     }
 
     // 菜单项矢量图标（24x24 视口的 Path 数据：齿轮 / 电源）
@@ -220,8 +287,8 @@ public partial class App : Application
     {
         Grid iconContainer = new()
         {
-            Width = 24,
-            Height = 24,
+            Width = 18,
+            Height = 18,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -230,14 +297,36 @@ public partial class App : Application
         {
             Data = Geometry.Parse(geometryData),
             Stretch = Stretch.Uniform,
-            Width = 18,
-            Height = 18,
+            Width = 16,
+            Height = 16,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
         path.SetResourceReference(Shape.FillProperty, "TextPrimaryBrush");
         iconContainer.Children.Add(path);
         return iconContainer;
+    }
+
+    private static UIElement CreateMenuHeader(string text, string geometryData)
+    {
+        Grid header = new();
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        UIElement icon = CreateMenuIcon(geometryData);
+        Grid.SetColumn(icon, 0);
+        header.Children.Add(icon);
+
+        TextBlock label = new()
+        {
+            Text = text,
+            Margin = new Thickness(6, 0, 8, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        label.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        Grid.SetColumn(label, 1);
+        header.Children.Add(label);
+        return header;
     }
 
     private void RestartApplication()
@@ -289,7 +378,7 @@ public partial class App : Application
     /// 拦截器回调：点击任务栏时钟在「显示面板 / 隐藏面板」之间切换。
     /// 面板未显示 → 显示；已显示 → 隐藏（再次点击时钟即收起）。
     /// </summary>
-    private void ShowPopup()
+    private void ShowPopup(nint monitor = default)
     {
         try
         {
@@ -302,7 +391,7 @@ public partial class App : Application
             _popup?.Close();
             _popup = new PopupWindow();
             _popup.Show();
-            WindowPositionHelper.PositionNearTaskbar(_popup);
+            WindowPositionHelper.PositionNearTaskbar(_popup, monitor);
             _popup.Activate();
         }
         catch (Exception ex)
@@ -315,7 +404,7 @@ public partial class App : Application
     /// <summary>
     /// 切换日历面板显示/隐藏。用于托盘图标点击。
     /// </summary>
-    private void TogglePopup()
+    private void TogglePopup(nint monitor = default)
     {
         try
         {
@@ -324,7 +413,7 @@ public partial class App : Application
                 _popup?.Close();
                 _popup = new PopupWindow();
                 _popup.Show();
-                WindowPositionHelper.PositionNearTaskbar(_popup);
+                WindowPositionHelper.PositionNearTaskbar(_popup, monitor);
                 _popup.Activate();
             }
             else
@@ -349,16 +438,17 @@ public partial class App : Application
                 _clockTimer.Tick -= OnClockTick;
                 _clockTimer = null;
             }
-            _taskbarClock?.Close();
-            _taskbarClock = null;
+            foreach (TaskbarClockWindow clock in _taskbarClocks)
+                clock.Close();
+            _taskbarClocks.Clear();
 
             if (_midnightTimer != null)
             {
                 _midnightTimer.Stop();
                 _midnightTimer = null;
             }
+            StopWeatherBackgroundRefresh();
             ThemeHelper.StopSystemThemeTracking();
-            _interceptor?.Dispose();
             _trayIcon?.Dispose();
         }
         finally

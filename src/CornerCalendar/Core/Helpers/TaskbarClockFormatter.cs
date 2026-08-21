@@ -7,7 +7,7 @@ namespace CornerCalendar.Core.Helpers;
 /// </summary>
 public static class TaskbarClockFormatter
 {
-    public const string DefaultFormat = "HH:mm\\nyyyy/M/d";
+    public const string DefaultFormat = "HH:mm:ss\\nyyyy/MM/dd";
 
     public static string Format(DateTime dateTime, string? format)
     {

@@ -1,7 +1,9 @@
 using CornerCalendar.Core.Helpers;
 using CornerCalendar.Core.Services;
 using System.Diagnostics;
+using System.Net.Http;
 using System.Reflection;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -32,6 +34,9 @@ public class WeatherLocationItem
 
 public partial class SettingsWindow : Window
 {
+    private const string GitHubLatestReleaseApi = "https://api.github.com/repos/Chendaqian/CornerCalendar/releases/latest";
+    private const string GitHubReleasesUrl = "https://github.com/Chendaqian/CornerCalendar/releases/latest";
+    private static readonly HttpClient UpdateHttpClient = CreateUpdateHttpClient();
     private readonly AppSettings _settings;
     private bool _initialized = false;
     private readonly List<IcsUrlItem> _icsUrls = new();
@@ -42,6 +47,14 @@ public partial class SettingsWindow : Window
 
     private static readonly string[] FontSizeLabels = { "最小", "较小", "标准", "较大", "最大" };
     private static readonly int[] IcsRefreshValues = { 10, 30, 60, 120 };
+    private static readonly int[] WeatherRefreshValues = { 30, 60, 120, 240 };
+
+    private static HttpClient CreateUpdateHttpClient()
+    {
+        HttpClient client = new() { Timeout = TimeSpan.FromSeconds(10) };
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("CornerCalendar/1.0");
+        return client;
+    }
 
     private static readonly string[] SubscriptionColors = {
         "#FF6D00", "#0078D4", "#E91E63", "#00897B", "#7B1FA2", "#C62828", "#2E7D32", "#F57F17"
@@ -55,6 +68,7 @@ public partial class SettingsWindow : Window
 
         // 底部版本信息：版本号读取自程序集（构建时由 CornerCalendar.csproj 的 <Version> 注入）
         FooterVersionText.Text = $"v{AppVersion}";
+        AboutVersionText.Text = $"版本：v{AppVersion}";
 
         LoadSettings();
         _initialized = true;
@@ -91,29 +105,17 @@ public partial class SettingsWindow : Window
         // #3 开机自启动
         AutoStartupCheckBox.IsChecked = _settings.AutoStartup;
 
-        // #4 数据源
-        DataSourceComboBox.SelectedIndex = (int)_settings.DataSource;
-        UpdateIcsPanelVisibility();
-
-        // 加载 ICS URL 列表（含别名）
-        _icsUrls.Clear();
-        if (_settings.IcsUrls != null)
+        // 加载 ICS URL 列表（含别名）；旧配置为空时展示一条默认数据地址。
+        List<string> icsUrls = _settings.IcsUrls ?? new List<string>();
+        List<string> icsAliases = _settings.IcsAliases ?? new List<string>();
+        if (icsUrls.Count == 0)
         {
-            for (int i = 0; i < _settings.IcsUrls.Count; i++)
-            {
-                string alias = (_settings.IcsAliases != null && i < _settings.IcsAliases.Count)
-                    ? _settings.IcsAliases[i] : "";
-                _icsUrls.Add(new IcsUrlItem
-                {
-                    Index = i,
-                    FullUrl = _settings.IcsUrls[i],
-                    DisplayUrl = ShortenUrl(_settings.IcsUrls[i]),
-                    Color = SubscriptionColors[i % SubscriptionColors.Length],
-                    Alias = alias
-                });
-            }
+            AppSettings defaults = AppSettings.CreateDefaults();
+            icsUrls = defaults.IcsUrls;
+            icsAliases = defaults.IcsAliases;
         }
-        RefreshIcsUrlList();
+        SetIcsUrlItems(icsUrls, icsAliases);
+        BuiltInIcsList.ItemsSource = ChinaCalendarService.BuiltInSources;
 
         int refreshIdx = Array.IndexOf(IcsRefreshValues, _settings.IcsRefreshMinutes);
         IcsRefreshCombo.SelectedIndex = refreshIdx >= 0 ? refreshIdx : 1;
@@ -121,6 +123,8 @@ public partial class SettingsWindow : Window
         WeatherApiUrlTextBox.Text = string.IsNullOrWhiteSpace(_settings.WeatherApiUrl)
             ? WeatherService.DefaultWeatherApiUrl
             : _settings.WeatherApiUrl;
+        int weatherRefreshIndex = Array.IndexOf(WeatherRefreshValues, _settings.WeatherRefreshMinutes);
+        WeatherRefreshCombo.SelectedIndex = weatherRefreshIndex >= 0 ? weatherRefreshIndex : 2;
 
         _weatherLocations.Clear();
         List<string> savedLocations = _settings.WeatherLocations ?? new List<string>();
@@ -158,6 +162,27 @@ public partial class SettingsWindow : Window
 
         // 字体大小滑块事件
         FontSizeSlider.ValueChanged += (_, _) => UpdateFontSizeLabel();
+    }
+
+    private void SetIcsUrlItems(IEnumerable<string> urls, IReadOnlyList<string>? aliases = null)
+    {
+        _icsUrls.Clear();
+        List<string> urlList = urls.ToList();
+        for (int i = 0; i < urlList.Count; i++)
+        {
+            string alias = aliases != null && i < aliases.Count ? aliases[i] : "";
+            _icsUrls.Add(new IcsUrlItem
+            {
+                Index = i,
+                FullUrl = urlList[i],
+                DisplayUrl = ShortenUrl(urlList[i]),
+                Color = SubscriptionColors[i % SubscriptionColors.Length],
+                Alias = alias
+            });
+        }
+
+        _selectedIcsUrl = null;
+        RefreshIcsUrlList();
     }
 
     private void OnTaskbarTimeFormatChanged(object sender, TextChangedEventArgs e)
@@ -265,6 +290,14 @@ public partial class SettingsWindow : Window
         e.Handled = true;
     }
 
+    private void OnBuiltInIcsLinkClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Hyperlink { DataContext: BuiltInIcsSource source })
+            OpenExternalUrl(source.Url);
+
+        e.Handled = true;
+    }
+
     private static void OpenExternalUrl(string url)
     {
         try
@@ -333,12 +366,6 @@ public partial class SettingsWindow : Window
         FontSizeLabel.Text = FontSizeLabels[idx];
     }
 
-    private void OnDataSourceChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (!_initialized) return;
-        UpdateIcsPanelVisibility();
-    }
-
     private void OnCategoryChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!_initialized)
@@ -354,6 +381,74 @@ public partial class SettingsWindow : Window
         CalendarPanel.Visibility = selectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
         WeatherPanel.Visibility = selectedIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
         DisplayPanel.Visibility = selectedIndex == 3 ? Visibility.Visible : Visibility.Collapsed;
+        UpdatePanel.Visibility = selectedIndex == 4 ? Visibility.Visible : Visibility.Collapsed;
+        AboutPanel.Visibility = selectedIndex == 5 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnCheckUpdateClick(object sender, RoutedEventArgs e)
+    {
+        CheckUpdateButton.IsEnabled = false;
+        UpdateStatusText.Text = "正在检查最新版本...";
+        _ = CheckForUpdatesAsync();
+    }
+
+    private async Task CheckForUpdatesAsync()
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(
+                await UpdateHttpClient.GetStringAsync(GitHubLatestReleaseApi));
+            string latestTag = document.RootElement.GetProperty("tag_name").GetString() ?? "";
+            string releaseUrl = document.RootElement.TryGetProperty("html_url", out JsonElement url)
+                ? url.GetString() ?? GitHubReleasesUrl
+                : GitHubReleasesUrl;
+            string latestVersionText = latestTag.TrimStart('v', 'V');
+
+            if (!Version.TryParse(AppVersion, out Version? currentVersion)
+                || !Version.TryParse(latestVersionText, out Version? latestVersion))
+            {
+                UpdateStatusText.Text = $"当前版本 v{AppVersion}，最新版本 {latestTag}。";
+                ShowReleasePrompt(latestTag, releaseUrl);
+                return;
+            }
+
+            if (latestVersion <= currentVersion)
+            {
+                UpdateStatusText.Text = $"当前版本 v{AppVersion} 已是最新版本。";
+                MessageBox.Show(UpdateStatusText.Text, "检查更新", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else
+            {
+                UpdateStatusText.Text = $"当前版本 v{AppVersion}，最新版本 {latestTag}。";
+                ShowReleasePrompt(latestTag, releaseUrl);
+            }
+        }
+        catch (Exception ex)
+        {
+            UpdateStatusText.Text = "检查更新失败，请检查网络连接。";
+            MessageBox.Show($"检查更新失败：{ex.Message}", "检查更新", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            CheckUpdateButton.IsEnabled = true;
+        }
+    }
+
+    private static void ShowReleasePrompt(string latestTag, string releaseUrl)
+    {
+        MessageBoxResult result = MessageBox.Show(
+            $"发现新版本 {latestTag}。\n\nRelease 页面：\n{releaseUrl}\n\n是否打开 Release 页面？",
+            "发现新版本",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Information);
+        if (result == MessageBoxResult.Yes)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo(releaseUrl) { UseShellExecute = true });
+            }
+            catch { }
+        }
     }
 
     private void RefreshWeatherLocationList()
@@ -485,15 +580,6 @@ public partial class SettingsWindow : Window
             _weatherLocations[i].Index = i;
     }
 
-    private void UpdateIcsPanelVisibility()
-    {
-        if (IcsPanel == null || DataSourceComboBox == null) return;
-        DataSourceType source = (DataSourceType)DataSourceComboBox.SelectedIndex;
-        IcsPanel.Visibility = source == DataSourceType.IcsUrl || source == DataSourceType.Both
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-    }
-
     private void OnApply(object sender, RoutedEventArgs e)
     {
         SaveSettings(closeWindow: false);
@@ -532,12 +618,11 @@ public partial class SettingsWindow : Window
         _settings.AutoStartup = AutoStartupCheckBox.IsChecked == true;
         ApplyAutoStartup(_settings.AutoStartup);
 
-        // #4 数据源
-        _settings.DataSource = (DataSourceType)DataSourceComboBox.SelectedIndex;
         _settings.IcsUrls = _icsUrls.Select(u => u.FullUrl).ToList();
         _settings.IcsAliases = _icsUrls.Select(u => u.Alias ?? "").ToList();
         _settings.IcsRefreshMinutes = IcsRefreshValues[IcsRefreshCombo.SelectedIndex];
         _settings.WeatherApiUrl = weatherApiUrl;
+        _settings.WeatherRefreshMinutes = WeatherRefreshValues[WeatherRefreshCombo.SelectedIndex];
         _settings.WeatherLocations = _weatherLocations
             .Select(location => location.City.Trim())
             .ToList();
@@ -565,6 +650,7 @@ public partial class SettingsWindow : Window
         _settings.Save();
         App.RefreshTaskbarClock(_settings.TaskbarTimeFormat);
         App.RefreshCalendarSettings();
+        App.RefreshWeatherSettings();
 
         if (closeWindow)
             Close();
@@ -581,24 +667,37 @@ public partial class SettingsWindow : Window
 
         if (result != MessageBoxResult.OK) return;
 
-        ThemeComboBox.SelectedIndex = (int)ThemeMode.FollowSystem;
-        FontSizeSlider.Value = 2;
-        AutoStartupCheckBox.IsChecked = false;
-        DataSourceComboBox.SelectedIndex = (int)DataSourceType.SystemCalendar;
-        _icsUrls.Clear();
-        RefreshIcsUrlList();
+        AppSettings defaults = AppSettings.CreateDefaults();
+
+        ThemeComboBox.SelectedIndex = (int)defaults.ThemeMode;
+        FontSizeSlider.Value = defaults.FontSizeOffset;
+        AutoStartupCheckBox.IsChecked = defaults.AutoStartup;
+        SetIcsUrlItems(defaults.IcsUrls, defaults.IcsAliases);
         NewIcsUrlTextBox.Text = "";
-        IcsRefreshCombo.SelectedIndex = 1;
+        IcsRefreshCombo.SelectedIndex = Array.IndexOf(IcsRefreshValues, defaults.IcsRefreshMinutes);
         _weatherLocations.Clear();
-        _weatherLocations.Add(new WeatherLocationItem { Index = 0, City = "" });
+        for (int i = 0; i < defaults.WeatherLocations.Count; i++)
+        {
+            _weatherLocations.Add(new WeatherLocationItem
+            {
+                Index = i,
+                City = defaults.WeatherLocations[i]
+            });
+        }
         RefreshWeatherLocationList();
         NewWeatherCityTextBox.Text = "";
-        WeatherApiUrlTextBox.Text = WeatherService.DefaultWeatherApiUrl;
-        UpcomingDaysCombo.SelectedIndex = 1;
-        WeekStartSunday.IsChecked = true;
-        WeekStartMonday.IsChecked = false;
-        ShowWeekNumbersCheckBox.IsChecked = false;
-        TaskbarTimeFormatTextBox.Text = TaskbarClockFormatter.DefaultFormat;
+        WeatherApiUrlTextBox.Text = defaults.WeatherApiUrl;
+        WeatherRefreshCombo.SelectedIndex = Array.IndexOf(WeatherRefreshValues, defaults.WeatherRefreshMinutes);
+        UpcomingDaysCombo.SelectedIndex = defaults.UpcomingDays switch
+        {
+            1 => 0,
+            7 => 2,
+            _ => 1
+        };
+        WeekStartSunday.IsChecked = defaults.WeekStartDay == WeekStartDay.Sunday;
+        WeekStartMonday.IsChecked = defaults.WeekStartDay == WeekStartDay.Monday;
+        ShowWeekNumbersCheckBox.IsChecked = defaults.ShowWeekNumbers;
+        TaskbarTimeFormatTextBox.Text = defaults.TaskbarTimeFormat;
     }
 
     private void ApplyAutoStartup(bool enable)
@@ -622,6 +721,30 @@ public partial class SettingsWindow : Window
         try
         {
             Process.Start(new ProcessStartInfo("https://chendaqian.github.io") { UseShellExecute = true });
+        }
+        catch { }
+    }
+
+    private void OnProjectLinkClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo("https://github.com/Chendaqian/CornerCalendar")
+            {
+                UseShellExecute = true
+            });
+        }
+        catch { }
+    }
+
+    private void OnReleaseLinkClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(GitHubReleasesUrl)
+            {
+                UseShellExecute = true
+            });
         }
         catch { }
     }

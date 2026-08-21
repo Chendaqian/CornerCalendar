@@ -22,4 +22,35 @@ public sealed record WeatherInfo(
     string City,
     double Temperature,
     string Description,
-    WeatherIconKind IconKind);
+    WeatherIconKind IconKind,
+    double FeelsLikeTemperature,
+    double RelativeHumidity,
+    double WindSpeed,
+    double Precipitation,
+    double CloudCover,
+    double UvIndex,
+    double DewPoint,
+    double Visibility,
+    IReadOnlyList<WeatherForecastDay> Forecast);
+
+/// <summary>
+/// 一天的天气预报。
+/// </summary>
+public sealed record WeatherForecastDay(
+    DateTime Date,
+    double MaxTemperature,
+    double MinTemperature,
+    double FeelsLikeMaxTemperature,
+    double FeelsLikeMinTemperature,
+    double RelativeHumidityMax,
+    double RelativeHumidityMin,
+    double CloudCover,
+    double Visibility,
+    string Description,
+    WeatherIconKind IconKind,
+    double PrecipitationProbability,
+    double WindSpeed,
+    double PrecipitationSum,
+    double UvIndexMax,
+    string Sunrise,
+    string Sunset);
