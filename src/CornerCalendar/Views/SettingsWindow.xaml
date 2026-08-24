@@ -69,6 +69,107 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+
+        <Style x:Key="HolidayToggleStyle" TargetType="ToggleButton">
+            <Setter Property="Width" Value="38" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="Background" Value="{DynamicResource SeparatorBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Grid>
+                            <Border x:Name="Track"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="10" />
+                            <Ellipse x:Name="Thumb"
+                                     Width="16"
+                                     Height="16"
+                                     Fill="{DynamicResource BackgroundBrush}"
+                                     HorizontalAlignment="Left"
+                                     Margin="2">
+                                <Ellipse.RenderTransform>
+                                    <TranslateTransform X="0" />
+                                </Ellipse.RenderTransform>
+                            </Ellipse>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Track"
+                                        Property="Background"
+                                        Value="{DynamicResource TodayAccentBrush}" />
+                                <Setter TargetName="Thumb"
+                                        Property="RenderTransform">
+                                    <Setter.Value>
+                                        <TranslateTransform X="18" />
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <DataTemplate x:Key="HolidayFilterBriefItemTemplate">
+            <Grid Margin="0,0,0,14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock FontSize="{DynamicResource FontSizeItemTitle}"
+                               TextWrapping="NoWrap"
+                               TextTrimming="CharacterEllipsis">
+                        <Run Text="{Binding Name}"
+                             Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <Run Text=" · "
+                             Foreground="{DynamicResource TextSecondaryBrush}" />
+                        <Run Text="{Binding TimeText}"
+                             Foreground="{DynamicResource TodayAccentBrush}" />
+                    </TextBlock>
+                </StackPanel>
+                <ToggleButton Grid.Column="1"
+                              IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                              Style="{StaticResource HolidayToggleStyle}"
+                              ToolTip="显示或隐藏此节日" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="HolidayFilterDetailItemTemplate">
+            <Grid Margin="0,0,0,14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0"
+                            MinWidth="0"
+                            Margin="0,0,12,0">
+                    <TextBlock FontSize="{DynamicResource FontSizeItemTitle}"
+                               TextWrapping="NoWrap"
+                               TextTrimming="CharacterEllipsis">
+                        <Run Text="{Binding Name}"
+                             Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <Run Text=" · "
+                             Foreground="{DynamicResource TextSecondaryBrush}" />
+                        <Run Text="{Binding TimeText}"
+                             Foreground="{DynamicResource TodayAccentBrush}" />
+                    </TextBlock>
+                    <TextBlock Text="{Binding DetailText}"
+                               FontSize="{DynamicResource FontSizeSecondary}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               TextTrimming="CharacterEllipsis"
+                               MaxHeight="34"
+                               Margin="0,3,0,0" />
+                </StackPanel>
+                <ToggleButton Grid.Column="1"
+                              IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                              Style="{StaticResource HolidayToggleStyle}"
+                              ToolTip="显示或隐藏此节日" />
+            </Grid>
+        </DataTemplate>
     </Window.Resources>
 
     <Border Background="{DynamicResource BackgroundBrush}"
@@ -84,7 +185,10 @@
         </Grid.RowDefinitions>
 
         <!-- 标题栏 -->
-        <Border Grid.Row="0" Background="{DynamicResource HoverBrush}">
+        <Border Grid.Row="0"
+                Background="{DynamicResource HoverBrush}"
+                CornerRadius="8,8,0,0"
+                ClipToBounds="True">
             <Grid Margin="16,0,8,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -123,7 +227,8 @@
                          Background="Transparent"
                          BorderThickness="0"
                          SelectedIndex="0"
-                         SelectionChanged="OnCategoryChanged">
+                         SelectionChanged="OnCategoryChanged"
+                         PreviewMouseWheel="OnSettingsCategoryMouseWheel">
                     <ListBox.Resources>
                         <Style TargetType="ListBoxItem">
                             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
@@ -166,14 +271,17 @@
                     </ListBox.Resources>
                     <ListBoxItem Content="常规" />
                     <ListBoxItem Content="日历" />
+                    <ListBoxItem Content="森日程" />
+                    <ListBoxItem Content="节日" />
                     <ListBoxItem Content="天气" />
+                    <ListBoxItem Content="今昔" />
                     <ListBoxItem Content="显示" />
-                    <ListBoxItem Content="更新" />
                     <ListBoxItem Content="关于" />
                 </ListBox>
             </Border>
 
             <ScrollViewer Grid.Column="1"
+                          x:Name="SettingsContentScrollViewer"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
                 <Grid Margin="24,18,24,18">
@@ -182,38 +290,6 @@
                         <TextBlock Text="常规"
                                    FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,18" />
-
-                        <TextBlock Text="颜色主题" FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
-                        <ComboBox x:Name="ThemeComboBox" Margin="0,0,0,20" Padding="8,6"
-                                  SelectedIndex="1">
-                            <ComboBoxItem Content="跟随系统" />
-                            <ComboBoxItem Content="浅色" />
-                            <ComboBoxItem Content="深色" />
-                        </ComboBox>
-
-                        <TextBlock Text="字体大小" FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
-                        <Grid Margin="0,0,0,4">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="A" FontSize="{DynamicResource FontSizeSecondary}"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                       VerticalAlignment="Center" Margin="0,0,8,0" />
-                            <Slider Grid.Column="1" x:Name="FontSizeSlider"
-                                    Minimum="-2" Maximum="2" Value="2"
-                                    TickFrequency="1" IsSnapToTickEnabled="True"
-                                    VerticalAlignment="Center" />
-                            <TextBlock Grid.Column="2" Text="A" FontSize="{DynamicResource FontSizePreviewLarge}" FontWeight="Bold"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                       VerticalAlignment="Center" Margin="8,0,0,0" />
-                        </Grid>
-                        <TextBlock x:Name="FontSizeLabel" Text="标准"
-                                   FontSize="{DynamicResource FontSizeSecondary}" Foreground="{DynamicResource TextSecondaryBrush}"
-                                   Margin="0,0,0,24" />
 
                         <Grid Margin="0,0,0,20">
                             <Grid.ColumnDefinitions>
@@ -327,13 +403,9 @@
 
                             <Grid Margin="0,0,0,8">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBox Grid.Column="0" x:Name="NewIcsUrlTextBox"
-                                         Padding="8,6"
-                                         ToolTip="输入 .ics 日历订阅链接" />
-                                <Button Grid.Column="1" Content="添加"
+                                <Button Grid.Column="0" Content="添加"
                                         Padding="12,6" Margin="6,0,0,0"
                                         Background="{DynamicResource TodayAccentBrush}"
                                         Foreground="White"
@@ -395,6 +467,269 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </StackPanel>
+                    </StackPanel>
+
+                    <!-- 森日程 -->
+                    <StackPanel x:Name="SenPanel" Visibility="Collapsed">
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="森日程"
+                                       FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       VerticalAlignment="Center" />
+                            <CheckBox Grid.Column="1"
+                                      x:Name="SenScheduleEnabledCheckBox"
+                                      VerticalAlignment="Center"
+                                      ToolTip="在主日历中显示森日程" />
+                        </Grid>
+
+                        <TextBlock Text="选择 Excel 工作簿；每个工作表对应一个迭代，工作表名称作为迭代名称。"
+                                   FontSize="{DynamicResource FontSizeFootnote}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,16" />
+
+                        <TextBlock Text="Excel 工作簿"
+                                   FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   Margin="0,0,0,6" />
+                        <Button Content="选择 Excel 文件并导入"
+                                HorizontalAlignment="Left"
+                                Padding="12,6"
+                                Background="{DynamicResource TodayAccentBrush}"
+                                Foreground="White"
+                                BorderThickness="0"
+                                FontWeight="SemiBold"
+                                Cursor="Hand"
+                                Click="OnImportSenScheduleExcel" />
+                        <TextBlock x:Name="SenImportErrorText"
+                                   FontSize="{DynamicResource FontSizeFootnote}"
+                                   Foreground="{DynamicResource WorkdayBadgeTextBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,8,0,14"
+                                   Visibility="Collapsed" />
+
+                        <TextBlock Text="已导入迭代"
+                                   FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   Margin="0,4,0,8" />
+                        <ItemsControl x:Name="SenIterationList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderThickness="1"
+                                            BorderBrush="{DynamicResource SeparatorBrush}"
+                                            CornerRadius="6"
+                                            Padding="8,7"
+                                            Margin="0,0,0,6"
+                                            Cursor="Hand"
+                                            AllowDrop="True"
+                                            DragOver="OnSenScheduleDragOver"
+                                            Drop="OnSenScheduleDrop"
+                                            MouseLeftButtonUp="OnPreviewSenSchedule">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0"
+                                                    Width="24"
+                                                    Height="32"
+                                                    Margin="0,0,6,0"
+                                                    Background="Transparent"
+                                                    Cursor="SizeAll"
+                                                    MouseLeftButtonDown="OnSenDragHandleMouseLeftButtonDown"
+                                                    MouseMove="OnSenDragHandleMouseMove"
+                                                    ToolTip="拖动调整顺序">
+                                                <TextBlock Text="⋮⋮"
+                                                           FontSize="16"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="{Binding Name}"
+                                                           FontSize="{DynamicResource FontSizeSecondary}"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                <TextBlock FontSize="{DynamicResource FontSizeFootnote}"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}">
+                                                    <Run Text="{Binding StartDate, Mode=OneWay, StringFormat=yyyy/M/d}" />
+                                                    <Run Text=" - " />
+                                                    <Run Text="{Binding EndDate, Mode=OneWay, StringFormat=yyyy/M/d}" />
+                                                </TextBlock>
+                                            </StackPanel>
+                                            <Button Grid.Column="2"
+                                                    Width="28"
+                                                    Height="28"
+                                                    Padding="0"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    Cursor="Hand"
+                                                    Click="OnToggleSenScheduleVisibility"
+                                                    Tag="{Binding Id}"
+                                                    ToolTip="显示或隐藏此迭代">
+                                                <Button.Style>
+                                                    <Style TargetType="Button">
+                                                        <Setter Property="Opacity" Value="0.45" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsEnabled}" Value="True">
+                                                                <Setter Property="Opacity" Value="1" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                                <Path Data="M12,4.5C7,4.5 2.73,7.61 1,12c1.73,4.39 6,7.5 11,7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5M12,17c-2.76,0-5-2.24-5-5s2.24-5 5-5 5,2.24 5,5-2.24,5-5,5m0-8c-1.66,0-3,1.34-3,3s1.34,3 3,3 3-1.34 3-3-1.34-3-3-3Z"
+                                                      Fill="{DynamicResource TextSecondaryBrush}"
+                                                      Stretch="Uniform"
+                                                      Width="16"
+                                                      Height="16" />
+                                            </Button>
+                                            <Button Grid.Column="3"
+                                                    Content="✕"
+                                                    Width="24" Height="24"
+                                                    Padding="0"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    Cursor="Hand"
+                                                    Click="OnRemoveSenSchedule"
+                                                    Tag="{Binding Id}"
+                                                    ToolTip="删除此迭代" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock x:Name="SenIterationEmptyText"
+                                   Text="尚未导入迭代"
+                                   FontSize="{DynamicResource FontSizeFootnote}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Margin="0,4,0,0" />
+                    </StackPanel>
+
+                    <!-- 节日 -->
+                    <StackPanel x:Name="HolidayPanel" Visibility="Collapsed">
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="节日筛选"
+                                       FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1"
+                                        Orientation="Horizontal"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,12,0">
+                                <TextBlock Text="详细"
+                                           FontSize="{DynamicResource FontSizeSecondary}"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,6,0" />
+                                <ToggleButton x:Name="HolidayDetailToggle"
+                                              IsChecked="True"
+                                              Style="{StaticResource HolidayToggleStyle}"
+                                              Checked="OnHolidayDetailModeChanged"
+                                              Unchecked="OnHolidayDetailModeChanged"
+                                              ToolTip="显示或隐藏节日详细信息" />
+                            </StackPanel>
+                            <Border Grid.Column="2"
+                                    Width="190"
+                                    Height="30"
+                                    Background="{DynamicResource HoverBrush}"
+                                    BorderBrush="{DynamicResource SeparatorBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="5">
+                                <Grid>
+                                    <Path Data="M9,2 A7,7 0 1,0 9,16 A7,7 0 1,0 9,2 M14,14 L20,20"
+                                          Stroke="{DynamicResource TextSecondaryBrush}"
+                                          StrokeThickness="1.5"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          Width="16"
+                                          Height="16"
+                                          Margin="8,0,0,0"
+                                          HorizontalAlignment="Left"
+                                          VerticalAlignment="Center"
+                                          Stretch="Uniform" />
+                                    <TextBox x:Name="HolidaySearchTextBox"
+                                             Background="Transparent"
+                                             BorderThickness="0"
+                                             Padding="28,3,6,3"
+                                             TextChanged="OnHolidaySearchTextChanged" />
+                                    <TextBlock x:Name="HolidaySearchPlaceholder"
+                                               Text="搜索节日"
+                                               FontSize="{DynamicResource FontSizeSecondary}"
+                                               Foreground="{DynamicResource TextDisabledBrush}"
+                                               IsHitTestVisible="False"
+                                               Margin="28,0,6,0"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+                        </Grid>
+                        <TextBlock Text="关闭的节日不会显示在主日历、近期事件和日期详情中；自定义 ICS 订阅不受影响。"
+                                   FontSize="{DynamicResource FontSizeFootnote}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,14" />
+                        <TextBlock x:Name="HolidayFilterLoadingText"
+                                   Text="正在加载节日列表..."
+                                   FontSize="{DynamicResource FontSizeSecondary}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Margin="0,0,0,12" />
+                        <TabControl x:Name="HolidayFilterTabs"
+                                    SelectionChanged="OnHolidayFilterTabChanged"
+                                    Height="360"
+                                    VerticalAlignment="Top">
+                            <TabItem Header="公历">
+                                <ScrollViewer x:Name="GregorianHolidayScrollViewer"
+                                              VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled"
+                                              Loaded="OnHolidayScrollViewerLoaded"
+                                              IsVisibleChanged="OnHolidayScrollViewerIsVisibleChanged"
+                                              Padding="4,14,8,0">
+                                    <ItemsControl x:Name="GregorianHolidayList"
+                                                  ItemTemplate="{StaticResource HolidayFilterBriefItemTemplate}" />
+                                </ScrollViewer>
+                            </TabItem>
+                            <TabItem Header="农历">
+                                <ScrollViewer x:Name="LunarHolidayScrollViewer"
+                                              VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled"
+                                              Loaded="OnHolidayScrollViewerLoaded"
+                                              IsVisibleChanged="OnHolidayScrollViewerIsVisibleChanged"
+                                              Padding="4,14,8,0">
+                                    <ItemsControl x:Name="LunarHolidayList"
+                                                  ItemTemplate="{StaticResource HolidayFilterBriefItemTemplate}" />
+                                </ScrollViewer>
+                            </TabItem>
+                            <TabItem Header="动态">
+                                <ScrollViewer x:Name="DynamicHolidayScrollViewer"
+                                              VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled"
+                                              Loaded="OnHolidayScrollViewerLoaded"
+                                              IsVisibleChanged="OnHolidayScrollViewerIsVisibleChanged"
+                                              Padding="4,14,8,0">
+                                    <ItemsControl x:Name="DynamicHolidayList"
+                                                  ItemTemplate="{StaticResource HolidayFilterBriefItemTemplate}" />
+                                </ScrollViewer>
+                            </TabItem>
+                        </TabControl>
+                        <TextBlock x:Name="HolidayFilterEmptyText"
+                                   Text="暂无可配置的节日"
+                                   FontSize="{DynamicResource FontSizeSecondary}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,16,0,0"
+                                   Visibility="Collapsed" />
                     </StackPanel>
 
                     <!-- 天气 -->
@@ -504,11 +839,89 @@
                         </Border>
                     </StackPanel>
 
+                    <!-- 今昔 -->
+                    <StackPanel x:Name="HistoryPanel" Visibility="Collapsed">
+                        <TextBlock Text="今昔"
+                                   FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,18" />
+
+                        <CheckBox x:Name="ShowHistoryTodayCheckBox"
+                                  Content="显示历史资料"
+                                  FontSize="{DynamicResource FontSizeBody}"
+                                  Foreground="{DynamicResource TextPrimaryBrush}"
+                                  Margin="0,0,0,20" />
+
+                        <TextBlock Text="内容类型" FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
+                        <WrapPanel Margin="0,0,0,20">
+                            <CheckBox x:Name="HistoryEventsCheckBox" Content="历史事件" Margin="0,0,18,8"
+                                      FontSize="{DynamicResource FontSizeBody}" Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <CheckBox x:Name="HistoryBirthsCheckBox" Content="出生" Margin="0,0,18,8"
+                                      FontSize="{DynamicResource FontSizeBody}" Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <CheckBox x:Name="HistoryDeathsCheckBox" Content="逝世" Margin="0,0,18,8"
+                                      FontSize="{DynamicResource FontSizeBody}" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        </WrapPanel>
+
+                        <TextBlock Text="最多显示条数" FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
+                        <ComboBox x:Name="HistoryMaxItemsCombo" Margin="0,0,0,20" Padding="8,6">
+                            <ComboBoxItem Content="5 条" />
+                            <ComboBoxItem Content="10 条" />
+                            <ComboBoxItem Content="20 条" />
+                            <ComboBoxItem Content="全部" />
+                        </ComboBox>
+
+                        <TextBlock Text="最早年份" FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
+                        <ComboBox x:Name="HistoryMinYearCombo" Margin="0,0,0,20" Padding="8,6">
+                            <ComboBoxItem Content="不限" />
+                            <ComboBoxItem Content="1900 年" />
+                            <ComboBoxItem Content="1800 年" />
+                        </ComboBox>
+
+                        <TextBlock Text="历史资料已随应用内置，不需要联网获取。"
+                                   FontSize="{DynamicResource FontSizeFootnote}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
                     <!-- 显示 -->
                     <StackPanel x:Name="DisplayPanel" Visibility="Collapsed">
                         <TextBlock Text="显示"
                                    FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,18" />
+
+                        <TextBlock Text="颜色主题" FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
+                        <ComboBox x:Name="ThemeComboBox" Margin="0,0,0,20" Padding="8,6"
+                                  SelectedIndex="1">
+                            <ComboBoxItem Content="跟随系统" />
+                            <ComboBoxItem Content="浅色" />
+                            <ComboBoxItem Content="深色" />
+                        </ComboBox>
+
+                        <TextBlock Text="字体大小" FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="A" FontSize="{DynamicResource FontSizeSecondary}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <Slider Grid.Column="1" x:Name="FontSizeSlider"
+                                    Minimum="-2" Maximum="2" Value="2"
+                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="2" Text="A" FontSize="{DynamicResource FontSizePreviewLarge}" FontWeight="Bold"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" />
+                        </Grid>
+                        <TextBlock x:Name="FontSizeLabel" Text="标准"
+                                   FontSize="{DynamicResource FontSizeSecondary}" Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Margin="0,0,0,24" />
 
                         <TextBlock Text="近期事件显示范围" FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
@@ -565,40 +978,6 @@
                         </Border>
                     </StackPanel>
 
-                    <!-- 更新 -->
-                    <StackPanel x:Name="UpdatePanel" Visibility="Collapsed">
-                        <TextBlock Text="更新"
-                                   FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,18" />
-                        <TextBlock Text="检查 GitHub Releases 中的最新版本。"
-                                   FontSize="{DynamicResource FontSizeBody}"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                   TextWrapping="Wrap" Margin="0,0,0,14" />
-                        <TextBlock FontSize="{DynamicResource FontSizeBody}"
-                                   Margin="0,0,0,16">
-                            <Run Text="Release 页面："
-                                 Foreground="{DynamicResource TextSecondaryBrush}" />
-                            <Hyperlink Click="OnReleaseLinkClick" Cursor="Hand">
-                                <Run Text="打开 GitHub Releases"
-                                     Foreground="{DynamicResource TodayAccentBrush}" />
-                            </Hyperlink>
-                        </TextBlock>
-                        <Button x:Name="CheckUpdateButton"
-                                Content="检查更新"
-                                HorizontalAlignment="Left"
-                                Padding="14,7"
-                                Background="{DynamicResource TodayAccentBrush}"
-                                Foreground="White"
-                                BorderThickness="0"
-                                Cursor="Hand"
-                                Click="OnCheckUpdateClick" />
-                        <TextBlock x:Name="UpdateStatusText"
-                                   FontSize="{DynamicResource FontSizeFootnote}"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                   TextWrapping="Wrap"
-                                   Margin="0,12,0,0" />
-                    </StackPanel>
-
                     <!-- 关于 -->
                     <StackPanel x:Name="AboutPanel" Visibility="Collapsed">
                         <TextBlock Text="关于"
@@ -629,6 +1008,36 @@
                                      Foreground="{DynamicResource TodayAccentBrush}" />
                             </Hyperlink>
                         </TextBlock>
+                        <TextBlock Text="更新"
+                                   FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,24,0,8" />
+                        <TextBlock Text="检查 GitHub Releases 中的最新版本。"
+                                   FontSize="{DynamicResource FontSizeBody}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap" Margin="0,0,0,14" />
+                        <TextBlock FontSize="{DynamicResource FontSizeBody}"
+                                   Margin="0,0,0,16">
+                            <Run Text="Release 页面："
+                                 Foreground="{DynamicResource TextSecondaryBrush}" />
+                            <Hyperlink Click="OnReleaseLinkClick" Cursor="Hand">
+                                <Run Text="打开 GitHub Releases"
+                                     Foreground="{DynamicResource TodayAccentBrush}" />
+                            </Hyperlink>
+                        </TextBlock>
+                        <Button x:Name="CheckUpdateButton"
+                                Content="检查更新"
+                                HorizontalAlignment="Left"
+                                Padding="14,7"
+                                Background="{DynamicResource TodayAccentBrush}"
+                                Foreground="White"
+                                BorderThickness="0"
+                                Cursor="Hand"
+                                Click="OnCheckUpdateClick" />
+                        <TextBlock x:Name="UpdateStatusText"
+                                   FontSize="{DynamicResource FontSizeFootnote}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,12,0,0" />
                     </StackPanel>
                 </Grid>
             </ScrollViewer>

@@ -16,5 +16,6 @@ public record CalendarDay(
     int HolidayDayIndex,
     List<CalendarEvent> Events,
     string SuitableActivities = "",
-    string AvoidActivities = ""
+    string AvoidActivities = "",
+    IReadOnlyList<SenScheduleOccurrence>? SenEvents = null
 );

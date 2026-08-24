@@ -88,6 +88,14 @@ public partial class TaskbarClockWindow : Window
         if (_isClosed)
             return;
 
+        if (IsFullscreenForegroundWindow())
+        {
+            if (IsVisible)
+                Hide();
+            RestoreSystemClock();
+            return;
+        }
+
         if (!IsVisible)
             Show();
 
@@ -138,11 +146,36 @@ public partial class TaskbarClockWindow : Window
         Left = right - Width;
         Top = bottom - Height;
 
-        // Windows 任务栏自身可能处于特殊的置顶层级，仅设置 WPF Topmost 有时仍会被它盖住。
-        // 重新定位后强制把覆盖层放到 HWND_TOPMOST，且不激活窗口，避免系统任务中心先响应点击。
+        // 正常桌面状态下需要位于任务栏上方；全屏前台窗口由上面的检测逻辑处理。
         nint hwnd = new WindowInteropHelper(this).Handle;
         SetWindowPos(hwnd, HwndTopmost, 0, 0, 0, 0,
             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    }
+
+    private bool IsFullscreenForegroundWindow()
+    {
+        nint foreground = GetForegroundWindow();
+        nint ownHandle = new WindowInteropHelper(this).Handle;
+        if (foreground == nint.Zero
+            || foreground == ownHandle
+            || foreground == _taskbarHandle)
+        {
+            return false;
+        }
+
+        nint monitor = MonitorFromWindow(foreground, MONITOR_DEFAULTTONEAREST);
+        MONITORINFO monitorInfo = new() { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        if (monitor == nint.Zero
+            || !GetMonitorInfo(monitor, ref monitorInfo)
+            || !GetWindowRect(foreground, out RECT foregroundRect))
+        {
+            return false;
+        }
+
+        return foregroundRect.Left <= monitorInfo.Monitor.Left
+            && foregroundRect.Top <= monitorInfo.Monitor.Top
+            && foregroundRect.Right >= monitorInfo.Monitor.Right
+            && foregroundRect.Bottom >= monitorInfo.Monitor.Bottom;
     }
 
     private void EnsureSystemClockState()
@@ -245,6 +278,11 @@ public partial class TaskbarClockWindow : Window
             byte red = (byte)(pixel & 0xFF);
             byte green = (byte)((pixel >> 8) & 0xFF);
             byte blue = (byte)((pixel >> 16) & 0xFF);
+            // DWM 合成的任务栏在部分系统配置下会返回 0，不能把它当作真实黑色。
+            // 否则透明覆盖层会出现一个突兀的黑色矩形。
+            if (red < 16 && green < 16 && blue < 16)
+                return null;
+
             System.Windows.Media.SolidColorBrush brush = new(
                 System.Windows.Media.Color.FromRgb(red, green, blue));
             brush.Freeze();
@@ -434,6 +472,9 @@ public partial class TaskbarClockWindow : Window
 
     [DllImport("user32.dll")]
     private static extern bool IsWindow(nint hwnd);
+
+    [DllImport("user32.dll")]
+    private static extern nint GetForegroundWindow();
 
     [DllImport("user32.dll")]
     private static extern nint MonitorFromWindow(nint hwnd, uint flags);

@@ -26,7 +26,7 @@ public partial class WeatherForecastWindow : Window
 
     private void UpdatePosition(Window mainPanel)
     {
-        WindowPositionHelper.PositionBeside(this, mainPanel);
+        WindowPositionHelper.PositionLeftAligned(this, mainPanel);
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e)

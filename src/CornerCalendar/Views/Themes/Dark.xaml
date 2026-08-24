@@ -7,6 +7,12 @@
 
     <!-- 强调色 -->
     <Color x:Key="TodayAccentColor">#FF4CC2FF</Color>
+    <Color x:Key="LunarLabelColor">#FF4CC2FF</Color>
+    <Color x:Key="LunarMonthColor">#FFF08BC5</Color>
+    <Color x:Key="LunarDayColor">#FF56D6B3</Color>
+    <Color x:Key="WeatherColdTextColor">#FF4CC2FF</Color>
+    <Color x:Key="WeatherWarmTextColor">#FFFF8A8F</Color>
+    <Color x:Key="WeatherHumidityTextColor">#FF56D6B3</Color>
 
     <!-- 文本色 -->
     <Color x:Key="TextPrimaryColor">#FFFFFFFF</Color>
@@ -33,13 +39,37 @@
 
     <!-- 事件圆点 -->
     <Color x:Key="EventDotColor">#FF4CC2FF</Color>
+    <Color x:Key="HistoryEventColor">#FF4CC2FF</Color>
+    <Color x:Key="HistoryBirthColor">#FF67C587</Color>
+    <Color x:Key="HistoryDeathColor">#FFFF8A9B</Color>
     <Color x:Key="TaskbarClockTextColor">#FFFFFFFF</Color>
     <Color x:Key="TaskbarClockFallbackColor">#FF202020</Color>
+
+    <!-- 森日程阶段圆圈与角标语义色 -->
+    <Color x:Key="SenCircleTr1Color">#FFFF8C42</Color>
+    <Color x:Key="SenCircleTr2Color">#FF75C7FF</Color>
+    <Color x:Key="SenCircleTr3Color">#FF56D6B3</Color>
+    <Color x:Key="SenCircleTr4Color">#FFB4A0FF</Color>
+    <Color x:Key="SenCircleTr5Color">#FFF08BC5</Color>
+    <Color x:Key="SenCircleCodingColor">#FFFFB900</Color>
+    <Color x:Key="SenCircleTestingColor">#FF67C587</Color>
+    <Color x:Key="SenCircleReleaseColor">#FFF2C94C</Color>
+    <Color x:Key="SenBadgeBriefingColor">#FFFF8A8F</Color>
+    <Color x:Key="SenBadgeReverseColor">#FFC8A1FF</Color>
+    <Color x:Key="SenBadgeSubmitColor">#FF6BD5D0</Color>
+    <Color x:Key="SenBadgePatrolColor">#FFF2C94C</Color>
+    <Color x:Key="SenBadgeSummaryColor">#FFC8C6C4</Color>
 
     <!-- 画刷（从颜色派生） -->
     <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}" />
     <SolidColorBrush x:Key="CardBackgroundBrush" Color="{StaticResource CardBackgroundColor}" />
     <SolidColorBrush x:Key="TodayAccentBrush" Color="{StaticResource TodayAccentColor}" />
+    <SolidColorBrush x:Key="LunarLabelBrush" Color="{StaticResource LunarLabelColor}" />
+    <SolidColorBrush x:Key="LunarMonthBrush" Color="{StaticResource LunarMonthColor}" />
+    <SolidColorBrush x:Key="LunarDayBrush" Color="{StaticResource LunarDayColor}" />
+    <SolidColorBrush x:Key="WeatherColdBrush" Color="{StaticResource WeatherColdTextColor}" />
+    <SolidColorBrush x:Key="WeatherWarmBrush" Color="{StaticResource WeatherWarmTextColor}" />
+    <SolidColorBrush x:Key="WeatherHumidityBrush" Color="{StaticResource WeatherHumidityTextColor}" />
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}" />
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}" />
     <SolidColorBrush x:Key="TextDisabledBrush" Color="{StaticResource TextDisabledColor}" />
@@ -55,6 +85,22 @@
     <SolidColorBrush x:Key="PressedBrush" Color="{StaticResource PressedColor}" />
     <SolidColorBrush x:Key="SelectedBrush" Color="{StaticResource SelectedColor}" />
     <SolidColorBrush x:Key="EventDotBrush" Color="{StaticResource EventDotColor}" />
+    <SolidColorBrush x:Key="HistoryEventBrush" Color="{StaticResource HistoryEventColor}" />
+    <SolidColorBrush x:Key="HistoryBirthBrush" Color="{StaticResource HistoryBirthColor}" />
+    <SolidColorBrush x:Key="HistoryDeathBrush" Color="{StaticResource HistoryDeathColor}" />
     <SolidColorBrush x:Key="TaskbarClockTextBrush" Color="{StaticResource TaskbarClockTextColor}" />
     <SolidColorBrush x:Key="TaskbarClockFallbackBrush" Color="{StaticResource TaskbarClockFallbackColor}" />
+    <SolidColorBrush x:Key="SenCircleTr1Brush" Color="{StaticResource SenCircleTr1Color}" />
+    <SolidColorBrush x:Key="SenCircleTr2Brush" Color="{StaticResource SenCircleTr2Color}" />
+    <SolidColorBrush x:Key="SenCircleTr3Brush" Color="{StaticResource SenCircleTr3Color}" />
+    <SolidColorBrush x:Key="SenCircleTr4Brush" Color="{StaticResource SenCircleTr4Color}" />
+    <SolidColorBrush x:Key="SenCircleTr5Brush" Color="{StaticResource SenCircleTr5Color}" />
+    <SolidColorBrush x:Key="SenCircleCodingBrush" Color="{StaticResource SenCircleCodingColor}" />
+    <SolidColorBrush x:Key="SenCircleTestingBrush" Color="{StaticResource SenCircleTestingColor}" />
+    <SolidColorBrush x:Key="SenCircleReleaseBrush" Color="{StaticResource SenCircleReleaseColor}" />
+    <SolidColorBrush x:Key="SenBadgeBriefingBrush" Color="{StaticResource SenBadgeBriefingColor}" />
+    <SolidColorBrush x:Key="SenBadgeReverseBrush" Color="{StaticResource SenBadgeReverseColor}" />
+    <SolidColorBrush x:Key="SenBadgeSubmitBrush" Color="{StaticResource SenBadgeSubmitColor}" />
+    <SolidColorBrush x:Key="SenBadgePatrolBrush" Color="{StaticResource SenBadgePatrolColor}" />
+    <SolidColorBrush x:Key="SenBadgeSummaryBrush" Color="{StaticResource SenBadgeSummaryColor}" />
 </ResourceDictionary>

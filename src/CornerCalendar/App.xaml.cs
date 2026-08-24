@@ -2,10 +2,13 @@ using CornerCalendar.Core.Helpers;
 using CornerCalendar.Core.Services;
 using CornerCalendar.Views;
 using Hardcodet.Wpf.TaskbarNotification;
+using System.IO;
+using System.IO.Pipes;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using System.Windows.Shell;
 using System.Windows.Threading;
 
 namespace CornerCalendar;
@@ -13,6 +16,7 @@ namespace CornerCalendar;
 public partial class App : Application
 {
     private const string SingleInstanceMutexName = "Local\\CornerCalendar.SingleInstance";
+    private const string CommandPipeName = "CornerCalendar.Command";
     private Mutex? _instanceMutex;
     private TaskbarIcon? _trayIcon;
     private readonly List<TaskbarClockWindow> _taskbarClocks = new();
@@ -22,16 +26,20 @@ public partial class App : Application
     private DispatcherTimer? _clockTimer;
     private DispatcherTimer? _weatherTimer;
     private CancellationTokenSource? _weatherRefreshCts;
+    private CancellationTokenSource? _commandServerCts;
     private bool _restartRequested;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
+        string? startupCommand = GetCommand(e.Args);
         bool createdNew;
         _instanceMutex = new Mutex(true, SingleInstanceMutexName, out createdNew);
         if (!createdNew)
         {
+            if (startupCommand != null)
+                SendCommandToExistingInstance(startupCommand);
             _instanceMutex.Dispose();
             _instanceMutex = null;
             Shutdown();
@@ -68,6 +76,15 @@ public partial class App : Application
 
         // 托盘图标和任务栏时钟覆盖层共用同样的右键菜单
         _trayIcon.ContextMenu = CreateContextMenu();
+        InitializeJumpList();
+        StartCommandServer();
+
+        if (startupCommand != null)
+        {
+            Dispatcher.BeginInvoke(
+                DispatcherPriority.ApplicationIdle,
+                new Action(() => ExecuteCommand(startupCommand)));
+        }
     }
 
     /// <summary>
@@ -107,6 +124,117 @@ public partial class App : Application
             System.Diagnostics.Debug.WriteLine("CornerCalendar: OpenSettings dispatcher callback executing");
             ShowSettings();
         }));
+    }
+
+    private static string? GetCommand(IEnumerable<string> arguments)
+        => arguments
+            .FirstOrDefault(argument => argument.StartsWith("--command=", StringComparison.OrdinalIgnoreCase))
+            ?.Split('=', 2)[1];
+
+    private void InitializeJumpList()
+    {
+        string? applicationPath = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(applicationPath))
+            return;
+
+        JumpList jumpList = new();
+        AddJumpTask(jumpList, applicationPath, "设置", "打开 CornerCalendar 设置", "settings");
+        AddJumpTask(jumpList, applicationPath, "重启", "重启 CornerCalendar", "restart");
+        AddJumpTask(jumpList, applicationPath, "退出", "退出 CornerCalendar", "exit");
+        JumpList.SetJumpList(this, jumpList);
+    }
+
+    private static void AddJumpTask(
+        JumpList jumpList,
+        string applicationPath,
+        string title,
+        string description,
+        string command)
+    {
+        jumpList.JumpItems.Add(new JumpTask
+        {
+            ApplicationPath = applicationPath,
+            WorkingDirectory = AppContext.BaseDirectory,
+            Arguments = $"--command={command}",
+            IconResourcePath = applicationPath,
+            IconResourceIndex = 0,
+            Title = title,
+            Description = description,
+            CustomCategory = "CornerCalendar"
+        });
+    }
+
+    private void StartCommandServer()
+    {
+        _commandServerCts = new CancellationTokenSource();
+        _ = RunCommandServerAsync(_commandServerCts.Token);
+    }
+
+    private async Task RunCommandServerAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                using NamedPipeServerStream server = new(
+                    CommandPipeName,
+                    PipeDirection.In,
+                    1,
+                    PipeTransmissionMode.Byte,
+                    PipeOptions.Asynchronous);
+                await server.WaitForConnectionAsync(cancellationToken);
+                using StreamReader reader = new(server);
+                string? command = await reader.ReadLineAsync(cancellationToken);
+                if (!string.IsNullOrWhiteSpace(command))
+                    _ = Dispatcher.BeginInvoke(new Action(() => ExecuteCommand(command)));
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"CornerCalendar: Command pipe failed: {ex.Message}");
+            }
+        }
+    }
+
+    private static void SendCommandToExistingInstance(string command)
+    {
+        try
+        {
+            using NamedPipeClientStream client = new(
+                ".",
+                CommandPipeName,
+                PipeDirection.Out);
+            client.Connect(1000);
+            using StreamWriter writer = new(client) { AutoFlush = true };
+            writer.WriteLine(command);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"CornerCalendar: Failed to send command to existing instance: {ex.Message}");
+        }
+    }
+
+    private void ExecuteCommand(string command)
+    {
+        switch (command.ToLowerInvariant())
+        {
+            case "settings":
+                OpenSettings();
+                break;
+
+            case "restart":
+                RestartApplication();
+                break;
+
+            case "exit":
+                Shutdown();
+                break;
+        }
     }
 
     private ContextMenu CreateContextMenu()
@@ -293,7 +421,7 @@ public partial class App : Application
             VerticalAlignment = VerticalAlignment.Center
         };
 
-        Path path = new Path
+        System.Windows.Shapes.Path path = new System.Windows.Shapes.Path
         {
             Data = Geometry.Parse(geometryData),
             Stretch = Stretch.Uniform,
@@ -389,10 +517,16 @@ public partial class App : Application
             }
 
             _popup?.Close();
-            _popup = new PopupWindow();
-            _popup.Show();
-            WindowPositionHelper.PositionNearTaskbar(_popup, monitor);
-            _popup.Activate();
+            PopupWindow popup = new();
+            _popup = popup;
+            popup.Closed += (_, _) =>
+            {
+                if (ReferenceEquals(_popup, popup))
+                    _popup = null;
+            };
+            popup.Show();
+            WindowPositionHelper.PositionNearTaskbar(popup, monitor);
+            popup.Activate();
         }
         catch (Exception ex)
         {
@@ -411,10 +545,16 @@ public partial class App : Application
             if (_popup == null || !_popup.IsVisible)
             {
                 _popup?.Close();
-                _popup = new PopupWindow();
-                _popup.Show();
-                WindowPositionHelper.PositionNearTaskbar(_popup, monitor);
-                _popup.Activate();
+                PopupWindow popup = new();
+                _popup = popup;
+                popup.Closed += (_, _) =>
+                {
+                    if (ReferenceEquals(_popup, popup))
+                        _popup = null;
+                };
+                popup.Show();
+                WindowPositionHelper.PositionNearTaskbar(popup, monitor);
+                popup.Activate();
             }
             else
             {
@@ -448,6 +588,12 @@ public partial class App : Application
                 _midnightTimer = null;
             }
             StopWeatherBackgroundRefresh();
+            if (_commandServerCts != null)
+            {
+                _commandServerCts.Cancel();
+                _commandServerCts.Dispose();
+                _commandServerCts = null;
+            }
             ThemeHelper.StopSystemThemeTracking();
             _trayIcon?.Dispose();
         }

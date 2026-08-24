@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="选择日期"
-        Width="620"
-        Height="650"
+        Width="682"
+        Height="715"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -15,6 +15,9 @@
             BorderThickness="1"
             CornerRadius="10"
             Padding="12">
+        <Border.LayoutTransform>
+            <ScaleTransform ScaleX="1.1" ScaleY="1.1" />
+        </Border.LayoutTransform>
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="42" />

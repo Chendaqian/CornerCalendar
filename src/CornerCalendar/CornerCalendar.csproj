@@ -12,7 +12,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon>Resources\icon.ico</ApplicationIcon>
-    <Version>1.1.0</Version>
+    <Version>1.2.0</Version>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -51,8 +51,11 @@
     <InternalsVisibleTo Include="CornerCalendar.Tests" />
   </ItemGroup>
   <ItemGroup>
-    <!-- 嵌入为 WPF 资源，供托盘图标（App.xaml 的 IconSource）读取；EXE 文件图标由 ApplicationIcon 单独引用 -->
+    <!-- 托盘图标和历史资料均使用程序目录中的文件；EXE 文件图标由 ApplicationIcon 单独引用 -->
     <Resource Include="Resources\icon.ico" />
+    <None Update="Resources\HistoryToday\*.json"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

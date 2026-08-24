@@ -4,6 +4,7 @@ using CornerCalendar.Core.Services;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.CompilerServices;
 
 namespace CornerCalendar.ViewModels;
@@ -13,7 +14,8 @@ namespace CornerCalendar.ViewModels;
 /// </summary>
 public class CalendarViewModel : INotifyPropertyChanged, IDisposable
 {
-    private readonly ICalendarService _calendarService;
+    private ICalendarService _calendarService;
+    private SenScheduleService _senScheduleService;
 
     private int _year;
     private int _month;
@@ -114,13 +116,19 @@ public class CalendarViewModel : INotifyPropertyChanged, IDisposable
     /// </summary>
     public int UpcomingDays { get; set; } = 7;
 
-    public CalendarViewModel() : this(CreateDefaultService())
+    public CalendarViewModel() : this(
+        CreateDefaultService(),
+        new SenScheduleService(AppSettings.Load().SenSchedules))
     {
     }
 
-    public CalendarViewModel(ICalendarService calendarService)
+    public CalendarViewModel(
+        ICalendarService calendarService,
+        SenScheduleService? senScheduleService = null)
     {
         _calendarService = calendarService;
+        _senScheduleService = senScheduleService
+            ?? new SenScheduleService(AppSettings.Load().SenSchedules);
 
         // 首次刷新前加载全部影响渲染的设置（周起始日 / 近期事件天数），
         // 保证第一次生成网格就用正确的周起始日，避免首屏双重刷新
@@ -143,7 +151,7 @@ public class CalendarViewModel : INotifyPropertyChanged, IDisposable
             new ChinaCalendarService(settings.IcsRefreshMinutes)
         };
 
-        // 日程统一来自 ICS：中国日历本身也是 ICS，用户还可以添加自己的订阅。
+        // 中国日历和普通用户订阅来自 ICS，森日程由独立的 Markdown 数据流提供。
         services.Add(CreateIcsService(settings));
 
         return new AggregateCalendarService(services.ToArray());
@@ -201,6 +209,9 @@ public class CalendarViewModel : INotifyPropertyChanged, IDisposable
     {
         if (!string.IsNullOrWhiteSpace(alias))
             return alias;
+
+        if (Path.IsPathRooted(url))
+            return Path.GetFileNameWithoutExtension(url);
 
         // 从 URL 推断默认名称
         try
@@ -317,7 +328,7 @@ public class CalendarViewModel : INotifyPropertyChanged, IDisposable
         List<CalendarEvent> events;
         try
         {
-            events = await _calendarService.GetEventsAsync(fromDate.Date, endDate);
+            events = await GetCalendarEventsAsync(fromDate.Date, endDate);
             ErrorText = null;
         }
         catch
@@ -357,13 +368,36 @@ public class CalendarViewModel : INotifyPropertyChanged, IDisposable
         await RefreshDataAsync();
     }
 
+    public async Task ReloadSettingsAsync()
+    {
+        ICalendarService previousService = _calendarService;
+        _calendarService = CreateDefaultService();
+        _senScheduleService = new SenScheduleService(AppSettings.Current.SenSchedules);
+        try
+        {
+            if (previousService is IDisposable disposable)
+                disposable.Dispose();
+        }
+        finally
+        {
+            await RefreshDataAsync();
+        }
+    }
+
+    public async Task SetSenScheduleEnabledAsync(bool enabled)
+    {
+        AppSettings.Current.SenScheduleEnabled = enabled;
+        AppSettings.Current.Save();
+        await RefreshDataAsync();
+    }
+
     /// <summary>
     /// 刷新所有数据：日历网格立即渲染，事件异步加载
     /// </summary>
     public async Task RefreshDataAsync()
     {
         // 第一阶段：立即生成日历网格（不依赖事件数据，纯日期计算）
-        GenerateCalendarGrid(new List<CalendarEvent>());
+        GenerateCalendarGrid(new List<CalendarEvent>(), Array.Empty<SenScheduleOccurrence>());
 
         // 第二阶段：异步加载事件数据，再更新网格和事件列表
         IsLoading = true;
@@ -375,7 +409,7 @@ public class CalendarViewModel : INotifyPropertyChanged, IDisposable
             List<CalendarEvent> events;
             try
             {
-                events = await _calendarService.GetEventsAsync(rangeStart, rangeEnd);
+                events = await GetCalendarEventsAsync(rangeStart, rangeEnd);
                 ErrorText = null;
             }
             catch (Exception ex)
@@ -402,8 +436,15 @@ public class CalendarViewModel : INotifyPropertyChanged, IDisposable
                 _chinaCalendarInfo = new Dictionary<DateTime, ChinaCalendarDayInfo>();
             }
 
+            _chinaCalendarInfo = CalendarEventFilter.FilterDayInfo(
+                _chinaCalendarInfo,
+                AppSettings.Current.HiddenHolidayNames);
+
+            List<SenScheduleOccurrence> senOccurrences = GetSenOccurrences(rangeStart, rangeEnd);
+            SenScheduleService.ApplyChinaWorkdays(senOccurrences, _chinaCalendarInfo);
+
             // 用事件数据重新生成网格（更新事件点标记）
-            GenerateCalendarGrid(events);
+            GenerateCalendarGrid(events, senOccurrences);
 
             // 生成近期事件列表（await 统一的 Task 方法，替代原 async void 实现）
             await UpdateUpcomingEventsFromDateAsync(SelectedDate);
@@ -417,7 +458,78 @@ public class CalendarViewModel : INotifyPropertyChanged, IDisposable
     /// <summary>
     /// 生成 6×7 日历网格
     /// </summary>
-    private void GenerateCalendarGrid(List<CalendarEvent> events)
+    private async Task<List<CalendarEvent>> GetCalendarEventsAsync(DateTime start, DateTime end)
+    {
+        List<CalendarEvent> events = await _calendarService.GetEventsAsync(start, end);
+        events = CalendarEventFilter.FilterBuiltInEvents(
+            events,
+            AppSettings.Current.HiddenHolidayNames);
+
+        foreach (SenScheduleOccurrence occurrence in GetSenOccurrences(start, end))
+            events.Add(CreateSenCalendarEvent(occurrence));
+
+        return events
+            .OrderBy(calendarEvent => calendarEvent.StartTime)
+            .ThenBy(calendarEvent => calendarEvent.Title, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    private List<SenScheduleOccurrence> GetSenOccurrences(DateTime start, DateTime end)
+    {
+        if (!AppSettings.Current.SenScheduleEnabled)
+            return new List<SenScheduleOccurrence>();
+
+        return _senScheduleService.GetOccurrences(start, end);
+    }
+
+    private static CalendarEvent CreateSenCalendarEvent(SenScheduleOccurrence occurrence)
+    {
+        (string? badge, string? badgeName, string? badgeColorKey) =
+            SenScheduleRules.GetBadge(occurrence, occurrence.StartDate);
+        string description = string.Join(
+            Environment.NewLine,
+            $"迭代：{occurrence.IterationName}",
+            occurrence.PhaseId is null
+                ? $"活动自然日：{occurrence.NaturalDays} 天"
+                : $"{occurrence.PhaseId}（{occurrence.PhaseName}）：阶段总天数 {occurrence.PhaseTotalDays} 天",
+            $"活动：{occurrence.Title}",
+            occurrence.WorkloadDays is int workload
+                ? $"工作量：{workload} 天"
+                : string.Empty,
+            badgeName is null ? string.Empty : $"角标：{badge}（{badgeName}）");
+
+        return new CalendarEvent(
+            Title: $"{occurrence.IterationName}：{occurrence.Title}",
+            StartTime: occurrence.StartDate,
+            EndTime: occurrence.EndDate.AddDays(1),
+            IsAllDay: true,
+            CalendarName: $"森日程 · {occurrence.IterationName}",
+            Color: GetSenColorHex(badgeColorKey ?? occurrence.CircleColorKey),
+            Description: description);
+    }
+
+    private static string GetSenColorHex(string? colorKey)
+        => colorKey switch
+        {
+            SenScheduleRules.Tr1CircleColorKey => "#D83B01",
+            SenScheduleRules.Tr2CircleColorKey => "#0078D4",
+            SenScheduleRules.Tr3CircleColorKey => "#008272",
+            SenScheduleRules.Tr4CircleColorKey => "#8764B8",
+            SenScheduleRules.Tr5CircleColorKey => "#C239B3",
+            SenScheduleRules.CodingCircleColorKey => "#CA5010",
+            SenScheduleRules.TestingCircleColorKey => "#107C10",
+            SenScheduleRules.ReleaseCircleColorKey => "#B7791F",
+            "SenBadgeBriefingBrush" => "#A4262C",
+            "SenBadgeReverseBrush" => "#5C2D91",
+            "SenBadgeSubmitBrush" => "#038387",
+            "SenBadgePatrolBrush" => "#986F0B",
+            "SenBadgeSummaryBrush" => "#605E5C",
+            _ => "#0078D4"
+        };
+
+    private void GenerateCalendarGrid(
+        List<CalendarEvent> events,
+        IReadOnlyList<SenScheduleOccurrence> senOccurrences)
     {
         CalendarDays.Clear();
 
@@ -466,7 +578,10 @@ public class CalendarViewModel : INotifyPropertyChanged, IDisposable
                     : chinaInfo.SuitableActivities,
                 AvoidActivities: string.IsNullOrWhiteSpace(chinaInfo?.AvoidActivities)
                     ? calculatedAvoid
-                    : chinaInfo.AvoidActivities
+                    : chinaInfo.AvoidActivities,
+                SenEvents: senOccurrences
+                    .Where(occurrence => SenScheduleRules.IsInRange(occurrence, date))
+                    .ToList()
             ));
         }
 

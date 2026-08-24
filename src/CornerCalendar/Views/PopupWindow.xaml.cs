@@ -16,7 +16,9 @@ public partial class PopupWindow : Window
 {
     private readonly CalendarViewModel _calendarViewModel;
     private readonly AppSettings _settings;
+    private readonly IHistoryTodayService _historyTodayService;
     private EventDetailWindow? _detailWindow;
+    private DateTime? _detailDate;
     private WeatherForecastWindow? _weatherForecastWindow;
     private WeatherInfo? _currentWeather;
     private readonly List<string> _weatherLocations;
@@ -33,6 +35,7 @@ public partial class PopupWindow : Window
 
         // 初始化 ViewModel
         _calendarViewModel = new CalendarViewModel();
+        _historyTodayService = new WikimediaHistoryTodayService();
 
         InitializeComponent();
 
@@ -53,7 +56,7 @@ public partial class PopupWindow : Window
         // 窗口尺寸变化时重新定位（异步加载事件后窗口变高）
         SizeChanged += OnSizeChanged;
 
-        // 点击日期格显示当天详情，详情中同时展示当天日程
+        // 点击日期格显示当天详情，详情中同时展示节日信息和历史资料
         Calendar.DateClicked += OnDateClicked;
 
         // 每次变为可见（首次弹出 / 从隐藏恢复）播放入场动画，避免生硬出现
@@ -159,7 +162,7 @@ public partial class PopupWindow : Window
         WeatherIconHost.Content = null;
         WeatherCityText.Text = string.IsNullOrWhiteSpace(location) ? "自动定位" : location;
         WeatherSummaryText.Text = "加载天气中...";
-        WeatherTemperatureText.Text = "--°";
+        SetWeatherSummary(null, null);
 
         try
         {
@@ -183,9 +186,9 @@ public partial class PopupWindow : Window
             WeatherIconHost.Content = WeatherIconFactory.Create(weather.IconKind);
             WeatherCityText.Text = weather.City;
             WeatherSummaryText.Text = weather.Description;
-            WeatherTemperatureText.Text = $"{weather.Temperature:F0}°";
             WeatherForecastDay? today = weather.Forecast
                 .FirstOrDefault(day => day.Date.Date == DateTime.Today);
+            SetWeatherSummary(weather, today);
             WeatherSection.ToolTip =
                 $"{weather.City}\n" +
                 $"天气：{weather.Description}\n" +
@@ -229,6 +232,13 @@ public partial class PopupWindow : Window
 
         if (_currentWeather?.Forecast.Count > 0)
         {
+            if (_weatherForecastWindow?.IsVisible == true)
+            {
+                _weatherForecastWindow.Hide();
+                e.Handled = true;
+                return;
+            }
+
             _weatherForecastWindow ??= new WeatherForecastWindow();
             _weatherForecastWindow.ShowForecast(_currentWeather, this);
         }
@@ -282,11 +292,25 @@ public partial class PopupWindow : Window
         _calendarViewModel.WeekStartDay = _settings.WeekStartDay == WeekStartDay.Monday ? 1 : 0;
         Calendar.UpdateWeekHeaders(_calendarViewModel.WeekStartDay);
         Calendar.ShowWeekNumbers = _settings.ShowWeekNumbers;
+        UpdateSenScheduleButton();
+    }
+
+    private void UpdateSenScheduleButton()
+    {
+        bool enabled = _settings.SenScheduleEnabled;
+        SenScheduleButton.Background = enabled
+            ? (Brush)FindResource("SelectedBrush")
+            : Brushes.Transparent;
+        SenScheduleButtonText.SetResourceReference(
+            TextBlock.ForegroundProperty,
+            enabled ? "TodayAccentBrush" : "TextSecondaryBrush");
+        SenScheduleButton.ToolTip = enabled ? "关闭森日程" : "开启森日程";
     }
 
     public void RefreshSettings()
     {
         ApplySettings();
+        _ = _calendarViewModel.ReloadSettingsAsync();
     }
 
     /// <summary>
@@ -328,8 +352,7 @@ public partial class PopupWindow : Window
     private bool _isHidingAnimated;
 
     /// <summary>
-    /// 带动画隐藏：面板向任务栏方向下滑后隐藏（与入场动画对称）。
-    /// 所有隐藏入口（失焦、点击时钟/托盘、打开设置）都应走这里。
+    /// 带动画关闭：面板向任务栏方向下滑后关闭（与入场动画对称）。
     /// </summary>
     public void HideAnimated()
     {
@@ -349,7 +372,7 @@ public partial class PopupWindow : Window
         {
             _isHidingAnimated = false;
             RootTranslate.Y = 0;
-            Hide();
+            Close();
         };
         RootTranslate.BeginAnimation(TranslateTransform.YProperty, slide);
     }
@@ -359,12 +382,20 @@ public partial class PopupWindow : Window
     /// </summary>
     private void OnDateClicked(CalendarDay day)
     {
+        if (_detailWindow?.IsVisible == true
+            && _detailDate?.Date == day.Date.Date)
+        {
+            CloseDetailWindow();
+            return;
+        }
+
         if (_detailWindow == null)
         {
-            _detailWindow = new EventDetailWindow();
+            _detailWindow = new EventDetailWindow(_historyTodayService);
             _detailWindow.ShowActivated = false;
         }
 
+        _detailDate = day.Date.Date;
         _detailWindow.ShowDay(day, this);
     }
 
@@ -377,6 +408,42 @@ public partial class PopupWindow : Window
         {
             _detailWindow.Hide();
         }
+        _detailDate = null;
+    }
+
+    private void SetWeatherSummary(WeatherInfo? weather, WeatherForecastDay? today)
+    {
+        if (weather == null)
+        {
+            CurrentTemperatureRun.Text = "--°";
+            WeatherPrecipitationRun.Text = "--%";
+            WeatherWindRun.Text = "-- km/h";
+            WeatherFeelsLikeRun.Text = "--°";
+            WeatherHumidityRun.Text = "--%";
+            return;
+        }
+
+        CurrentTemperatureRun.Text = $"{weather.Temperature:F0}°";
+        CurrentTemperatureRun.Foreground = GetTemperatureBrush(weather.Temperature);
+        WeatherPrecipitationRun.Text = today == null
+            ? "--%"
+            : $"{today.PrecipitationProbability:F0}%";
+        WeatherWindRun.Text = today == null
+            ? "-- km/h"
+            : $"{today.WindSpeed:F0} km/h";
+        WeatherFeelsLikeRun.Text = $"{weather.FeelsLikeTemperature:F0}°";
+        WeatherHumidityRun.Text = $"{weather.RelativeHumidity:F0}%";
+        WeatherFeelsLikeRun.Foreground = GetTemperatureBrush(weather.FeelsLikeTemperature);
+    }
+
+    private static System.Windows.Media.Brush? GetTemperatureBrush(double temperature)
+    {
+        string resourceKey = temperature < 15
+            ? "WeatherColdBrush"
+            : temperature > 25
+                ? "WeatherWarmBrush"
+                : "TextPrimaryBrush";
+        return Application.Current.TryFindResource(resourceKey) as System.Windows.Media.Brush;
     }
 
     private void CloseWeatherForecastWindow()
@@ -387,13 +454,29 @@ public partial class PopupWindow : Window
         }
     }
 
+    private void DisposeChildWindows()
+    {
+        if (_detailWindow != null)
+        {
+            _detailWindow.Close();
+            _detailWindow = null;
+        }
+
+        if (_weatherForecastWindow != null)
+        {
+            _weatherForecastWindow.Close();
+            _weatherForecastWindow = null;
+        }
+
+        _detailDate = null;
+    }
+
     /// <summary>
     /// 隐藏时同时关闭详情
     /// </summary>
     protected override void OnClosed(EventArgs e)
     {
-        CloseDetailWindow();
-        CloseWeatherForecastWindow();
+        DisposeChildWindows();
         if (_weatherLoadCts != null)
         {
             try
@@ -450,6 +533,26 @@ public partial class PopupWindow : Window
     {
         CloseDetailWindow();
         App.ShowSettings();
+    }
+
+    private void OnSenScheduleClick(object sender, RoutedEventArgs e)
+    {
+        _ = ToggleSenScheduleAsync();
+    }
+
+    private async Task ToggleSenScheduleAsync()
+    {
+        SenScheduleButton.IsEnabled = false;
+        try
+        {
+            await _calendarViewModel.SetSenScheduleEnabledAsync(!_settings.SenScheduleEnabled);
+            UpdateSenScheduleButton();
+            UpdateNoEventsVisibility();
+        }
+        finally
+        {
+            SenScheduleButton.IsEnabled = true;
+        }
     }
 
     private void OnClosePopupClick(object sender, RoutedEventArgs e)

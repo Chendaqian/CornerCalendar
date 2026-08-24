@@ -1,3 +1,4 @@
+using CornerCalendar.Core.Models;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -34,13 +35,22 @@ public class AppSettings
     public bool AutoStartup { get; set; } = false;
 
     // #4 .ics 远程 URL 列表（支持多个订阅）
-    public List<string> IcsUrls { get; set; } = new() { ChinaCalendarService.HolidayUrl };
+    public List<string> IcsUrls { get; set; } = new();
 
     // #4 .ics 订阅别名列表（与 IcsUrls 一一对应）
-    public List<string> IcsAliases { get; set; } = new() { "默认日历" };
+    public List<string> IcsAliases { get; set; } = new();
 
     // #4 .ics 刷新频率（分钟）
     public int IcsRefreshMinutes { get; set; } = 120;
+
+    // 森日程显示开关，默认关闭
+    public bool SenScheduleEnabled { get; set; } = false;
+
+    // 已导入的森日程迭代（支持旧版 Markdown 数据和 Excel 工作表数据）
+    public List<SenScheduleIteration> SenSchedules { get; set; } = new();
+
+    // 内置中国日历中被隐藏的节日名称
+    public List<string> HiddenHolidayNames { get; set; } = new();
 
     // #5 近期事件显示天数
     public int UpcomingDays { get; set; } = 7;
@@ -62,6 +72,18 @@ public class AppSettings
 
     // 天气后台刷新频率（分钟）
     public int WeatherRefreshMinutes { get; set; } = 120;
+
+    // 是否在日期详情中显示历史资料
+    public bool ShowHistoryToday { get; set; } = true;
+
+    // 历史资料类型：事件、出生、逝世、节日
+    public List<string> HistoryCategories { get; set; } = new() { "事件" };
+
+    // 历史资料最多显示条数，0 表示全部
+    public int HistoryMaxItems { get; set; } = 10;
+
+    // 历史资料最早年份，0 表示不限
+    public int HistoryMinYear { get; set; } = 1900;
 
     /// <summary>
     /// 创建一份默认配置。恢复默认和新建设置均使用这里的值。

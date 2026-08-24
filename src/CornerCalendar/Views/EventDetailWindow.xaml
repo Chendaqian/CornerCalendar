@@ -2,82 +2,106 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="日期详情"
-        Width="380" SizeToContent="Height"
+        Width="418" Height="660" SizeToContent="Manual"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
         ShowInTaskbar="False"
         ShowActivated="False"
         Topmost="True"
-        ResizeMode="NoResize"
-        MaxHeight="620">
+        ResizeMode="NoResize">
 
     <Border Background="{DynamicResource BackgroundBrush}"
             BorderBrush="{DynamicResource BorderBrush}"
             BorderThickness="1"
             CornerRadius="10"
-            Padding="18">
+            Padding="14">
+        <Border.LayoutTransform>
+            <ScaleTransform ScaleX="1.1" ScaleY="1.1" />
+        </Border.LayoutTransform>
         <StackPanel>
-            <Grid Margin="0,0,0,3">
+            <Grid Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
                 <TextBlock x:Name="DayTitle"
+                           Grid.Column="0"
                            FontSize="{DynamicResource FontSizeSubtitle}"
                            FontWeight="SemiBold"
                            Foreground="{DynamicResource TextPrimaryBrush}"
                            VerticalAlignment="Center" />
-                <Button HorizontalAlignment="Right"
-                        Width="28" Height="28"
-                        Background="Transparent" BorderThickness="0"
-                        Cursor="Hand" Click="OnCloseClick"
-                        ToolTip="关闭">
-                    <Path Data="M4,4 L20,20 M20,4 L4,20"
-                          Stroke="{DynamicResource TextSecondaryBrush}"
-                          StrokeThickness="2"
-                          StrokeStartLineCap="Round"
-                          StrokeEndLineCap="Round"
-                          Stretch="Uniform" Width="14" Height="14" />
-                </Button>
+                <StackPanel Grid.Column="2"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <TextBlock x:Name="RelativeDayText"
+                               FontSize="{DynamicResource FontSizeSecondary}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,8,0"
+                               Visibility="Collapsed" />
+                    <Button Width="28" Height="28"
+                            Background="Transparent" BorderThickness="0"
+                            Cursor="Hand" Click="OnCloseClick"
+                            ToolTip="关闭">
+                        <Path Data="M4,4 L20,20 M20,4 L4,20"
+                              Stroke="{DynamicResource TextSecondaryBrush}"
+                              StrokeThickness="2"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              Stretch="Uniform" Width="14" Height="14" />
+                    </Button>
+                </StackPanel>
             </Grid>
-
-            <TextBlock x:Name="DaySubtitle"
-                       FontSize="{DynamicResource FontSizeSecondary}"
-                       Foreground="{DynamicResource TextSecondaryBrush}"
-                       Margin="0,0,0,14" />
 
             <Border Background="{DynamicResource HoverBrush}"
                     BorderBrush="{DynamicResource SeparatorBrush}"
                     BorderThickness="1"
                     CornerRadius="7"
-                    Padding="12,10">
+                    Padding="10,8">
                 <StackPanel>
-                    <TextBlock Text="日历信息"
-                               FontSize="{DynamicResource FontSizeSecondary}"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextSecondaryBrush}"
-                               Margin="0,0,0,7" />
-                    <TextBlock x:Name="LunarText"
-                               FontSize="{DynamicResource FontSizeBody}"
-                               Foreground="{DynamicResource TextPrimaryBrush}"
-                               TextWrapping="Wrap" />
-                    <TextBlock x:Name="FestivalText"
-                               FontSize="{DynamicResource FontSizeBody}"
-                               Foreground="{DynamicResource TodayAccentBrush}"
-                               TextWrapping="Wrap"
-                               Margin="0,4,0,0" />
+                    <Grid Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   Text="日历信息"
+                                   FontSize="{DynamicResource FontSizeSecondary}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1"
+                                   FontSize="{DynamicResource FontSizeBody}"
+                                   TextWrapping="Wrap"
+                                   Margin="10,0,0,0"
+                                   VerticalAlignment="Center">
+                            <Run x:Name="LunarLabelRun"
+                                 Text="农历 "
+                                 Foreground="{DynamicResource LunarLabelBrush}" />
+                            <Run x:Name="LunarMonthRun"
+                                 Foreground="{DynamicResource LunarMonthBrush}" />
+                            <Run Text=" " />
+                            <Run x:Name="LunarDayRun"
+                                 Foreground="{DynamicResource LunarDayBrush}" />
+                        </TextBlock>
+                    </Grid>
                     <TextBlock x:Name="HolidayText"
                                FontSize="{DynamicResource FontSizeBody}"
                                Foreground="{DynamicResource TodayAccentBrush}"
                                TextWrapping="Wrap"
                                Margin="0,4,0,0" />
 
-                    <StackPanel Margin="0,12,0,0">
-                        <Grid Margin="0,0,0,8">
+                    <StackPanel Margin="0,10,0,0">
+                        <Grid Margin="0,0,0,6">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="30" />
-                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="26" />
+                                <ColumnDefinition Width="10" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <Border Grid.Column="0"
-                                    Width="28" Height="28"
+                                    Width="24" Height="24"
                                     Background="{DynamicResource RestDayBadgeBrush}"
                                     CornerRadius="14"
                                     HorizontalAlignment="Left"
@@ -95,16 +119,16 @@
                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                        TextWrapping="Wrap"
                                        VerticalAlignment="Top"
-                                       Margin="0,4,0,0" />
+                                       Margin="0,2,0,0" />
                         </Grid>
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="30" />
-                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="26" />
+                                <ColumnDefinition Width="10" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <Border Grid.Column="0"
-                                    Width="28" Height="28"
+                                    Width="24" Height="24"
                                     Background="{DynamicResource WorkdayBadgeBrush}"
                                     CornerRadius="14"
                                     HorizontalAlignment="Left"
@@ -122,18 +146,18 @@
                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                        TextWrapping="Wrap"
                                        VerticalAlignment="Top"
-                                       Margin="0,4,0,0" />
+                                       Margin="0,2,0,0" />
                         </Grid>
                     </StackPanel>
                 </StackPanel>
             </Border>
 
-            <Border Height="1"
+            <Border x:Name="HistorySeparator" Height="1"
                     Background="{DynamicResource SeparatorBrush}"
-                    Margin="0,16,0,12" />
+                    Margin="0,12,0,8" />
 
-            <Grid Margin="0,0,0,8">
-                <TextBlock Text="当天日程"
+            <Grid Margin="0,0,0,6">
+                <TextBlock Text="节日信息"
                            FontSize="{DynamicResource FontSizeItemTitle}"
                            FontWeight="SemiBold"
                            Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -143,13 +167,57 @@
                            Foreground="{DynamicResource TextSecondaryBrush}" />
             </Grid>
 
-            <ScrollViewer MaxHeight="250"
+            <ScrollViewer MaxHeight="120"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
                 <StackPanel x:Name="DayEventsPanel" />
             </ScrollViewer>
             <TextBlock x:Name="NoEventsText"
-                       Text="当天没有日程"
+                       Text="暂无节日信息"
+                       FontSize="{DynamicResource FontSizeBody}"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       HorizontalAlignment="Center"
+                       Margin="0,8,0,2"
+                       Visibility="Collapsed" />
+
+            <Border Height="1"
+                    Background="{DynamicResource SeparatorBrush}"
+                    Margin="0,12,0,8" />
+
+            <Grid Margin="0,0,0,6">
+                <TextBlock x:Name="HistorySectionTitle"
+                           Text="历史上的今天"
+                           FontSize="{DynamicResource FontSizeItemTitle}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                <TextBlock x:Name="HistoryCountText"
+                           HorizontalAlignment="Right"
+                           FontSize="{DynamicResource FontSizeFootnote}"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+            </Grid>
+
+            <ScrollViewer x:Name="HistoryScrollViewer"
+                          MaxHeight="360"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="HistoryItemsPanel" />
+            </ScrollViewer>
+            <TextBlock x:Name="HistoryLoadingText"
+                       Text="加载中..."
+                       FontSize="{DynamicResource FontSizeBody}"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       HorizontalAlignment="Center"
+                       Margin="0,8,0,2"
+                       Visibility="Collapsed" />
+            <TextBlock x:Name="NoHistoryText"
+                       Text="暂无历史资料"
+                       FontSize="{DynamicResource FontSizeBody}"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       HorizontalAlignment="Center"
+                       Margin="0,8,0,2"
+                       Visibility="Collapsed" />
+            <TextBlock x:Name="HistoryErrorText"
+                       Text="历史资料加载失败"
                        FontSize="{DynamicResource FontSizeBody}"
                        Foreground="{DynamicResource TextSecondaryBrush}"
                        HorizontalAlignment="Center"

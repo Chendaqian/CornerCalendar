@@ -12,11 +12,13 @@ using IcalEvent = Ical.Net.CalendarComponents.CalendarEvent;
 namespace CornerCalendar.Core.Services;
 
 /// <summary>
-/// 远程 ICS 日历订阅服务 —— 从指定 URL 下载 .ics 文件并解析事件
+/// ICS 日历订阅服务 —— 从指定 URL 或本地 .ics 文件读取并解析事件
 /// </summary>
 public class IcsCalendarService : ICalendarService, IDisposable
 {
     private readonly string _icsUrl;
+    private readonly bool _isLocalFile;
+    private readonly string? _localFilePath;
     private readonly int _refreshMinutes;
     private readonly string _calendarName;
     private readonly string _color;
@@ -28,10 +30,13 @@ public class IcsCalendarService : ICalendarService, IDisposable
     private readonly HttpClient _httpClient;
     private readonly string _diskCachePath; // 磁盘缓存文件路径
     private readonly SemaphoreSlim _refreshLock = new(1, 1); // 保证同一时刻只有一个网络刷新在途
+    private DateTime _localFileLastWriteTimeUtc = DateTime.MinValue;
 
     public IcsCalendarService(string icsUrl, int refreshMinutes = 30, string calendarName = "ICS 订阅", string color = "#0078D4")
     {
         _icsUrl = icsUrl ?? throw new ArgumentNullException(nameof(icsUrl));
+        _isLocalFile = TryGetLocalFilePath(_icsUrl, out string localFilePath);
+        _localFilePath = _isLocalFile ? localFilePath : null;
         _refreshMinutes = refreshMinutes;
         _calendarName = calendarName;
         _color = color;
@@ -87,6 +92,12 @@ public class IcsCalendarService : ICalendarService, IDisposable
 
     public async Task ForceRefreshAsync()
     {
+        if (_isLocalFile)
+        {
+            await RefreshFromLocalFileAsync(force: true);
+            return;
+        }
+
         // 强制刷新：跳过所有缓存，直接从网络下载
         // （信号量保证与在途后台刷新串行执行，避免并发写同一缓存文件）
         await RefreshFromNetworkAsync(force: true);
@@ -98,6 +109,12 @@ public class IcsCalendarService : ICalendarService, IDisposable
     /// </summary>
     private async Task EnsureCacheAsync()
     {
+        if (_isLocalFile)
+        {
+            await EnsureLocalFileCacheAsync();
+            return;
+        }
+
         // 1. 内存缓存仍然有效 → 直接返回（最快路径）
         if (_cachedCalendar != null && (DateTime.Now - _lastRefreshTime).TotalMinutes < _refreshMinutes)
             return;
@@ -121,6 +138,74 @@ public class IcsCalendarService : ICalendarService, IDisposable
 
         // 4. 无任何缓存 → 必须同步网络下载（仅首次启动会发生）
         await RefreshFromNetworkAsync();
+    }
+
+    private async Task EnsureLocalFileCacheAsync()
+    {
+        if (_localFilePath == null)
+            return;
+
+        if (!File.Exists(_localFilePath))
+        {
+            await LoadFromDiskCacheAsync();
+            if (_cachedCalendar == null)
+                throw new FileNotFoundException("本地 ICS 文件不存在", _localFilePath);
+            return;
+        }
+
+        DateTime lastWriteTimeUtc = File.GetLastWriteTimeUtc(_localFilePath);
+        if (_cachedCalendar != null && lastWriteTimeUtc <= _localFileLastWriteTimeUtc)
+            return;
+
+        await RefreshFromLocalFileAsync(force: false);
+    }
+
+    private async Task RefreshFromLocalFileAsync(bool force)
+    {
+        if (_localFilePath == null)
+            return;
+
+        await _refreshLock.WaitAsync();
+        try
+        {
+            if (!File.Exists(_localFilePath))
+            {
+                await LoadFromDiskCacheAsync();
+                if (_cachedCalendar == null)
+                    throw new FileNotFoundException("本地 ICS 文件不存在", _localFilePath);
+                return;
+            }
+
+            DateTime lastWriteTimeUtc = File.GetLastWriteTimeUtc(_localFilePath);
+            if (!force
+                && _cachedCalendar != null
+                && lastWriteTimeUtc <= _localFileLastWriteTimeUtc)
+            {
+                return;
+            }
+
+            string icsContent = await File.ReadAllTextAsync(_localFilePath);
+            Calendar? calendar = ParseIcsContent(icsContent);
+            if (calendar == null)
+                throw new InvalidDataException($"本地 ICS 文件无法解析：{_localFilePath}");
+
+            _cachedCalendar = calendar;
+            _localFileLastWriteTimeUtc = lastWriteTimeUtc;
+            _lastRefreshTime = DateTime.Now;
+
+            try
+            {
+                await File.WriteAllTextAsync(_diskCachePath, icsContent);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"CornerCalendar: Failed to cache local ICS: {ex.Message}");
+            }
+        }
+        finally
+        {
+            _refreshLock.Release();
+        }
     }
 
     /// <summary>
@@ -208,6 +293,28 @@ public class IcsCalendarService : ICalendarService, IDisposable
         HttpResponseMessage response = await _httpClient.GetAsync(_icsUrl);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStringAsync();
+    }
+
+    private static bool TryGetLocalFilePath(string value, out string localFilePath)
+    {
+        localFilePath = string.Empty;
+        if (value.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!Uri.TryCreate(value, UriKind.Absolute, out Uri? fileUri)
+                || !fileUri.IsFile)
+            {
+                return false;
+            }
+
+            localFilePath = fileUri.LocalPath;
+            return true;
+        }
+
+        if (!Path.IsPathRooted(value))
+            return false;
+
+        localFilePath = Path.GetFullPath(value);
+        return true;
     }
 
     /// <summary>
@@ -359,6 +466,7 @@ public class IcsCalendarService : ICalendarService, IDisposable
 
     public void Dispose()
     {
+        _cachedCalendar = null;
         _httpClient.Dispose();
         _refreshLock.Dispose();
     }

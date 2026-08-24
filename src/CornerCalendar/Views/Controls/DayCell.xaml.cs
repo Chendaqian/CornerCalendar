@@ -1,4 +1,5 @@
 using CornerCalendar.Core.Models;
+using CornerCalendar.Core.Services;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -60,6 +61,8 @@ public partial class DayCell : UserControl
 
         cell.DayText.FontWeight = day.IsToday ? FontWeights.Bold : FontWeights.Normal;
 
+        UpdateSenVisuals(cell, day);
+
         cell.HolidayBadge.Visibility = Visibility.Collapsed;
         if (day.IsWorkday)
         {
@@ -102,6 +105,8 @@ public partial class DayCell : UserControl
             tooltipLines.Add($"法定节假日 {day.LegalHoliday}");
         if (day.IsWorkday)
             tooltipLines.Add("调休补班");
+
+        AppendSenTooltips(tooltipLines, day);
         cell.ToolTip = string.Join(Environment.NewLine, tooltipLines);
 
         // 事件圆点 - 最多3个，按事件显示；同一数据源的多个事件也分别显示。
@@ -158,6 +163,9 @@ public partial class DayCell : UserControl
             cell.SelectedCircle.Visibility = isSelected ? Visibility.Visible : Visibility.Collapsed;
             SetDayTextBrush(cell, cell.DayData, isSelected);
         }
+
+        if (cell.DayData is not null)
+            UpdateSenVisuals(cell, cell.DayData);
     }
 
     private void OnDayClick(object sender, MouseButtonEventArgs e)
@@ -198,5 +206,90 @@ public partial class DayCell : UserControl
 
         string[] lunarParts = day.LunarDate.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         return lunarParts.Length > 0 ? lunarParts[^1] : day.LunarDate;
+    }
+
+    private static void UpdateSenVisuals(DayCell cell, CalendarDay day)
+    {
+        SenScheduleOccurrence? primary = day.SenEvents is { Count: > 0 }
+            ? SenScheduleService.SelectPrimary(day.SenEvents, day.Date)
+            : null;
+
+        cell.SenBadge.Visibility = Visibility.Collapsed;
+        cell.SenCircle.Visibility = Visibility.Collapsed;
+        if (primary is null)
+            return;
+
+        bool isWeekend = day.Date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+        bool canShowSenMarker = !isWeekend
+            && !day.IsWorkday
+            && string.IsNullOrWhiteSpace(day.LegalHoliday);
+        if (!canShowSenMarker)
+            return;
+
+        (string? badge, _, string? badgeColorKey) = SenScheduleRules.GetBadge(primary, day.Date);
+        if (!string.IsNullOrWhiteSpace(badge) && !string.IsNullOrWhiteSpace(badgeColorKey))
+        {
+            cell.SenBadgeText.Text = badge;
+            cell.SenBadgeText.SetResourceReference(
+                TextBlock.ForegroundProperty,
+                badgeColorKey);
+            cell.SenBadge.Visibility = Visibility.Visible;
+        }
+
+        // 选中和今日状态仍保持现有蓝色/填充圆圈，阶段色只用于普通状态。
+        if (!day.IsToday
+            && !cell.IsSelected
+            && !isWeekend
+            && !day.IsWorkday
+            && string.IsNullOrWhiteSpace(day.LegalHoliday)
+            && !string.IsNullOrWhiteSpace(primary.CircleColorKey))
+        {
+            cell.SenCircle.SetResourceReference(
+                System.Windows.Shapes.Shape.StrokeProperty,
+                primary.CircleColorKey);
+            cell.SenCircle.Visibility = Visibility.Visible;
+        }
+    }
+
+    private static void AppendSenTooltips(List<string> tooltipLines, CalendarDay day)
+    {
+        if (day.SenEvents is not { Count: > 0 })
+            return;
+
+        foreach (IGrouping<string, SenScheduleOccurrence> group in day.SenEvents
+                     .OrderBy(occurrence => occurrence.IterationName, StringComparer.Ordinal)
+                     .GroupBy(occurrence => occurrence.IterationName, StringComparer.Ordinal))
+        {
+            tooltipLines.Add($"森日程 · {group.Key}");
+            foreach (SenScheduleOccurrence occurrence in group.OrderBy(item => item.Sequence))
+            {
+                (string? badge, string? badgeName, _) = SenScheduleRules.GetBadge(occurrence, day.Date);
+                string phaseText = occurrence.PhaseId is null
+                    ? $"{occurrence.Title} 自然 {occurrence.NaturalDays} 天，工作 {occurrence.WorkDays} 天"
+                    : $"{occurrence.PhaseId}（{occurrence.PhaseName}）自然 {occurrence.PhaseTotalDays} 天，工作 {occurrence.PhaseWorkDays} 天";
+                tooltipLines.Add(phaseText);
+
+                if (occurrence.PhaseId is not null
+                    && !IsPhaseTitle(occurrence))
+                {
+                    string badgeText = badge is null
+                        ? string.Empty
+                        : $"，角标 {badge}{(badgeName is null ? string.Empty : $"（{badgeName}）")}";
+                    tooltipLines.Add($"当前活动：{occurrence.Title}{badgeText}");
+                }
+            }
+        }
+    }
+
+    private static bool IsPhaseTitle(SenScheduleOccurrence occurrence)
+    {
+        if (occurrence.PhaseId is null || occurrence.PhaseName is null)
+            return false;
+
+        return string.Equals(occurrence.Title, occurrence.PhaseName, StringComparison.Ordinal)
+            || string.Equals(
+                occurrence.Title,
+                $"{occurrence.PhaseName}({occurrence.PhaseId})",
+                StringComparison.Ordinal);
     }
 }

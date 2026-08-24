@@ -149,7 +149,72 @@ public static class WindowPositionHelper
             left = anchor.Left + anchor.ActualWidth + 8;
 
         popup.Left = Math.Max(workLeft, Math.Min(left, workRight - popup.ActualWidth));
-        double top = anchor.Top + (anchor.ActualHeight - popup.ActualHeight) / 2;
+        // 与主窗口底部对齐；空间不足时再向工作区内收拢。
+        double top = anchor.Top + anchor.ActualHeight - popup.ActualHeight;
         popup.Top = Math.Max(workTop, Math.Min(top, workBottom - popup.ActualHeight));
+    }
+
+    public static void PositionAbove(Window popup, Window anchor)
+    {
+        PresentationSource? source = PresentationSource.FromVisual(popup);
+        if (source?.CompositionTarget == null)
+            return;
+
+        nint anchorHandle = new WindowInteropHelper(anchor).Handle;
+        nint monitor = MonitorFromWindow(anchorHandle, 2);
+        MONITORINFO monitorInfo = new() { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        if (!GetMonitorInfo(monitor, ref monitorInfo))
+            return;
+
+        double scaleX = source.CompositionTarget.TransformFromDevice.M11;
+        double scaleY = source.CompositionTarget.TransformFromDevice.M22;
+        double workLeft = monitorInfo.rcWork.Left * scaleX;
+        double workRight = monitorInfo.rcWork.Right * scaleX;
+        double workTop = monitorInfo.rcWork.Top * scaleY;
+        double workBottom = monitorInfo.rcWork.Bottom * scaleY;
+        double popupWidth = popup.ActualWidth;
+        double popupHeight = popup.ActualHeight;
+
+        double left = anchor.Left + (anchor.ActualWidth - popupWidth) / 2;
+        left = Math.Max(workLeft, Math.Min(left, workRight - popupWidth));
+
+        double top = anchor.Top - popupHeight - 8;
+        if (top < workTop)
+            top = anchor.Top + anchor.ActualHeight + 8;
+        top = Math.Max(workTop, Math.Min(top, workBottom - popupHeight));
+
+        popup.Left = left;
+        popup.Top = top;
+    }
+
+    public static void PositionLeftAligned(Window popup, Window anchor)
+    {
+        PresentationSource? source = PresentationSource.FromVisual(popup);
+        if (source?.CompositionTarget == null)
+            return;
+
+        nint anchorHandle = new WindowInteropHelper(anchor).Handle;
+        nint monitor = MonitorFromWindow(anchorHandle, 2);
+        MONITORINFO monitorInfo = new() { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        if (!GetMonitorInfo(monitor, ref monitorInfo))
+            return;
+
+        double scaleX = source.CompositionTarget.TransformFromDevice.M11;
+        double scaleY = source.CompositionTarget.TransformFromDevice.M22;
+        double workLeft = monitorInfo.rcWork.Left * scaleX;
+        double workRight = monitorInfo.rcWork.Right * scaleX;
+        double workTop = monitorInfo.rcWork.Top * scaleY;
+        double workBottom = monitorInfo.rcWork.Bottom * scaleY;
+        double popupWidth = popup.ActualWidth;
+        double popupHeight = popup.ActualHeight;
+
+        double left = anchor.Left - popupWidth - 8;
+        if (left < workLeft)
+            left = anchor.Left + anchor.ActualWidth + 8;
+        left = Math.Max(workLeft, Math.Min(left, workRight - popupWidth));
+
+        double top = Math.Max(workTop, Math.Min(anchor.Top, workBottom - popupHeight));
+        popup.Left = left;
+        popup.Top = top;
     }
 }
