@@ -28,7 +28,8 @@
                     Foreground="{DynamicResource TextPrimaryBrush}"
                     BorderThickness="0"
                     Cursor="Hand"
-                    VerticalAlignment="Center" />
+                    VerticalAlignment="Center"
+                    ToolTip="上一个月（键盘左方向键）" />
 
             <!-- 月份标题 + 今天按钮 -->
             <StackPanel Grid.Column="1" Orientation="Horizontal"
@@ -62,7 +63,8 @@
                     Foreground="{DynamicResource TextPrimaryBrush}"
                     BorderThickness="0"
                     Cursor="Hand"
-                    VerticalAlignment="Center" />
+                    VerticalAlignment="Center"
+                    ToolTip="下一个月（键盘右方向键）" />
         </Grid>
 
         <!-- 星期头（动态更新，支持周日起始） -->

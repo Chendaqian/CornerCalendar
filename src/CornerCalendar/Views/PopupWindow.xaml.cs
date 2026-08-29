@@ -59,8 +59,25 @@ public partial class PopupWindow : Window
         // 点击日期格显示当天详情，详情中同时展示节日信息和历史资料
         Calendar.DateClicked += OnDateClicked;
 
+        // 主面板激活后支持使用左右方向键切换月份
+        PreviewKeyDown += OnPreviewKeyDown;
+
         // 每次变为可见（首次弹出 / 从隐藏恢复）播放入场动画，避免生硬出现
         IsVisibleChanged += OnVisibilityChanged;
+    }
+
+    private void OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Left)
+        {
+            _calendarViewModel.NavigatePreviousMonth();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Right)
+        {
+            _calendarViewModel.NavigateNextMonth();
+            e.Handled = true;
+        }
     }
 
     private void OnVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e)

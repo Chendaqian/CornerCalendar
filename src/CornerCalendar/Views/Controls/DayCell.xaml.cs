@@ -219,13 +219,6 @@ public partial class DayCell : UserControl
         if (primary is null)
             return;
 
-        bool isWeekend = day.Date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
-        bool canShowSenMarker = !isWeekend
-            && !day.IsWorkday
-            && string.IsNullOrWhiteSpace(day.LegalHoliday);
-        if (!canShowSenMarker)
-            return;
-
         (string? badge, _, string? badgeColorKey) = SenScheduleRules.GetBadge(primary, day.Date);
         if (!string.IsNullOrWhiteSpace(badge) && !string.IsNullOrWhiteSpace(badgeColorKey))
         {
@@ -236,12 +229,10 @@ public partial class DayCell : UserControl
             cell.SenBadge.Visibility = Visibility.Visible;
         }
 
-        // 选中和今日状态仍保持现有蓝色/填充圆圈，阶段色只用于普通状态。
+        // 阶段圆圈表示森日程活动范围，即使当天是周末或调休上班日也应显示。
+        // 选中和今日状态仍保持现有蓝色/填充圆圈。
         if (!day.IsToday
             && !cell.IsSelected
-            && !isWeekend
-            && !day.IsWorkday
-            && string.IsNullOrWhiteSpace(day.LegalHoliday)
             && !string.IsNullOrWhiteSpace(primary.CircleColorKey))
         {
             cell.SenCircle.SetResourceReference(
