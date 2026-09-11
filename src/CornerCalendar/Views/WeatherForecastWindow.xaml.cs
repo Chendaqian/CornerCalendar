@@ -1,6 +1,7 @@
 using CornerCalendar.Core.Helpers;
 using CornerCalendar.Core.Models;
 using System.Windows;
+using System.Windows.Input;
 
 namespace CornerCalendar.Views;
 
@@ -9,6 +10,19 @@ public partial class WeatherForecastWindow : Window
     public WeatherForecastWindow()
     {
         InitializeComponent();
+    }
+
+    /// <summary>
+    /// 按住窗口任意非按钮区域可拖动（无边框窗口没有标题栏）。
+    /// </summary>
+    /// <remark>
+    /// 按钮按下事件被 ButtonBase 标记已处理、不会冒泡到窗口，故关闭按钮不受拖动影响；
+    /// 拖动后的位置保持到下次重新打开（ShowForecast 才会重新靠主面板定位）。
+    /// </remark>
+    protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
+    {
+        base.OnMouseLeftButtonDown(e);
+        DragMove();
     }
 
     public void ShowForecast(WeatherInfo weather, Window mainPanel)
