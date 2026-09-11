@@ -1,0 +1,32 @@
+{
+  "ThemeMode": "Light",
+  "FontSizeOffset": 2,
+  "AutoStartup": true,
+  "IcsUrls": [],
+  "IcsAliases": [],
+  "IcsRefreshMinutes": 120,
+  "SenScheduleEnabled": true,
+  "SenSchedules": [],
+  "ShowSenPhaseCircles": true,
+  "SenOnlineUrl": "https://raw.giteeusercontent.com/LuckBUBU/CornerCalendar/raw/master",
+  "HiddenHolidayNames": [],
+  "UpcomingDays": 7,
+  "WeekStartDay": "Monday",
+  "ShowWeekNumbers": true,
+  "RunnerName": "rubber-duck-frames",
+  "WeatherLocations": [
+    "\u5317\u4EAC",
+    "\u5927\u8FDE",
+    "\u6210\u90FD"
+  ],
+  "WeatherApiUrl": "https://api.open-meteo.com/v1/forecast",
+  "WeatherRefreshMinutes": 120,
+  "ShowHistoryToday": true,
+  "HistoryCategories": [
+    "\u4E8B\u4EF6",
+    "\u51FA\u751F",
+    "\u901D\u4E16"
+  ],
+  "HistoryMaxItems": 0,
+  "HistoryMinYear": 1900
+}

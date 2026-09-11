@@ -149,12 +149,12 @@ public class SenScheduleTests
     }
 
     [Fact]
-    public void 新设置默认关闭森日程且没有导入迭代()
+    public void 新设置默认启用森日程但迭代靠在线下载()
     {
         AppSettings settings = AppSettings.CreateDefaults();
 
-        Assert.False(settings.SenScheduleEnabled);
-        Assert.Empty(settings.SenSchedules);
+        Assert.True(settings.SenScheduleEnabled);
+        Assert.Empty(settings.SenSchedules);   // 不内置迭代快照，首次启动从 SenOnlineUrl 拉取
     }
 
     [Fact]

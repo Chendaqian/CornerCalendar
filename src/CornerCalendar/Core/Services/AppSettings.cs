@@ -1,3 +1,4 @@
+using CornerCalendar.Core.Helpers;
 using CornerCalendar.Core.Models;
 using System.IO;
 using System.Text.Json;
@@ -46,8 +47,14 @@ public class AppSettings
     // 森日程显示开关，默认关闭
     public bool SenScheduleEnabled { get; set; } = false;
 
-    // 已导入的森日程迭代（支持旧版 Markdown 数据和 Excel 工作表数据）
+    // 森日程迭代（在线清单拉取合并结果与本地历史数据）
     public List<SenScheduleIteration> SenSchedules { get; set; } = new();
+
+    // 森日程阶段圆圈显示开关（日期格上的非选中态圆圈），默认显示
+    public bool ShowSenPhaseCircles { get; set; } = true;
+
+    // 森日程在线数据根地址（应用拉取其下 manifest.yaml），清空则停用在线
+    public string SenOnlineUrl { get; set; } = "https://raw.giteeusercontent.com/LuckBUBU/CornerCalendar/raw/master";
 
     // 内置中国日历中被隐藏的节日名称
     public List<string> HiddenHolidayNames { get; set; } = new();
@@ -61,8 +68,8 @@ public class AppSettings
     // 是否在月历左侧显示 ISO 周数
     public bool ShowWeekNumbers { get; set; } = true;
 
-    // 覆盖任务栏时钟的 DateTime.ToString 格式，使用字面量 \\n 换行
-    public string TaskbarTimeFormat { get; set; } = "HH:mm:ss\\nyyyy/MM/dd";
+    // 当前选中的托盘跑者（Resources\Runners 下的文件夹名），缺失时回退默认值
+    public string RunnerName { get; set; } = RunnerLibrary.DefaultRunnerName;
 
     // 天气位置列表：空字符串表示使用公网 IP 自动定位
     public List<string> WeatherLocations { get; set; } = new() { "北京", "大连", "成都" };
@@ -88,7 +95,11 @@ public class AppSettings
     /// <summary>
     /// 创建一份默认配置。恢复默认和新建设置均使用这里的值。
     /// </summary>
-    public static AppSettings CreateDefaults() => new();
+    /// <remark>
+    /// 默认值来自内置的 Resources/default-settings.json（出厂配置快照），
+    /// 读取失败时回退属性初始化器。
+    /// </remark>
+    public static AppSettings CreateDefaults() => LoadEmbeddedDefaults();
 
     /// <summary>
     /// 全局单例设置实例（ISSUES #15）：所有窗口共用同一份，
@@ -123,6 +134,28 @@ public class AppSettings
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"CornerCalendar: Failed to load settings: {ex}");
+        }
+        return LoadEmbeddedDefaults();
+    }
+
+    /// <summary>
+    /// 读取程序集内嵌的出厂默认配置（Resources/default-settings.json）。
+    /// </summary>
+    private static AppSettings LoadEmbeddedDefaults()
+    {
+        try
+        {
+            using Stream? stream = typeof(AppSettings).Assembly
+                .GetManifestResourceStream("CornerCalendar.Resources.default-settings.json");
+            if (stream != null)
+            {
+                using StreamReader reader = new(stream);
+                return JsonSerializer.Deserialize<AppSettings>(reader.ReadToEnd(), JsonOptions) ?? new AppSettings();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"CornerCalendar: Failed to load embedded defaults: {ex}");
         }
         return new AppSettings();
     }

@@ -1,4 +1,5 @@
 using CornerCalendar.Core.Helpers;
+using CornerCalendar.Core.Models;
 using CornerCalendar.Core.Services;
 using CornerCalendar.Views;
 using Hardcodet.Wpf.TaskbarNotification;
@@ -19,13 +20,12 @@ public partial class App : Application
     private const string CommandPipeName = "CornerCalendar.Command";
     private Mutex? _instanceMutex;
     private TaskbarIcon? _trayIcon;
-    private readonly List<TaskbarClockWindow> _taskbarClocks = new();
+    private TrayRunnerAnimator? _runnerAnimator;
     private PopupWindow? _popup;
     private SettingsWindow? _settingsWindow;
-    private DispatcherTimer? _midnightTimer;
-    private DispatcherTimer? _clockTimer;
     private DispatcherTimer? _weatherTimer;
     private CancellationTokenSource? _weatherRefreshCts;
+    private CancellationTokenSource? _senOnlineCts;
     private CancellationTokenSource? _commandServerCts;
     private bool _restartRequested;
 
@@ -60,8 +60,8 @@ public partial class App : Application
         // 左键点击弹出日历
         _trayIcon.TrayLeftMouseDown += (s, args) => TogglePopup();
 
-        // 托盘图标固定为 Resources/icon.ico（App.xaml 的 IconSource），这里只设置提示文本
-        _trayIcon.ToolTipText = $"CornerCalendar - {DateTime.Now:yyyy年M月d日 dddd}";
+        // 托盘图标与悬停提示由跑者动画器接管（IconSource 仅作启动占位，提示每秒刷新为 CPU 占用）
+        _trayIcon.ToolTipText = "CornerCalendar";
 
         // 应用保存的主题设置，并监听系统深浅色变化（ISSUES #2）
         AppSettings settings = AppSettings.Load();
@@ -69,15 +69,31 @@ public partial class App : Application
         ThemeHelper.StartSystemThemeTracking();
         StartWeatherBackgroundRefresh();
 
-        InitializeTaskbarClock();
+        // 森日程在线数据：启动后后台拉取一次并合并（失败静默，回退缓存）
+        StartSenOnlineRefresh();
 
-        // 跨午夜刷新托盘图标日期（ISSUES #3）
-        ScheduleMidnightTrayRefresh();
+        // 托盘跑者动画（帧速随 CPU 负载动态变化）
+        try
+        {
+            _runnerAnimator = new TrayRunnerAnimator(_trayIcon);
+            _runnerAnimator.Start(settings.RunnerName);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"CornerCalendar: Runner tray animation failed: {ex.Message}");
+            _runnerAnimator?.Dispose();
+            _runnerAnimator = null;
+        }
 
-        // 托盘图标和任务栏时钟覆盖层共用同样的右键菜单
+        // 托盘图标右键菜单
         _trayIcon.ContextMenu = CreateContextMenu();
         InitializeJumpList();
         StartCommandServer();
+
+        // 启动空闲时预建主面板（构造内含天气预载），首次点击托盘即可直接显示
+        Dispatcher.BeginInvoke(
+            DispatcherPriority.ApplicationIdle,
+            new Action(() => _popup ??= new PopupWindow()));
 
         if (startupCommand != null)
         {
@@ -267,40 +283,6 @@ public partial class App : Application
         return menu;
     }
 
-    private void InitializeTaskbarClock()
-    {
-        try
-        {
-            // 只覆盖 Windows 标记的主显示器任务栏，副显示器保留系统原生时钟和控制中心。
-            nint primaryTaskbar = TaskbarClockWindow.FindPrimaryTaskbarWindow();
-            TaskbarClockWindow clock = new(primaryTaskbar)
-            {
-                ContextMenu = CreateContextMenu()
-            };
-            clock.ClockClicked += monitor => TogglePopup(monitor);
-            clock.Show();
-            _taskbarClocks.Add(clock);
-
-            RefreshTaskbarClock();
-
-            _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-            _clockTimer.Tick += OnClockTick;
-            _clockTimer.Start();
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"CornerCalendar: Taskbar clock overlay failed: {ex.Message}");
-            foreach (TaskbarClockWindow clock in _taskbarClocks)
-                clock.Close();
-            _taskbarClocks.Clear();
-        }
-    }
-
-    private void OnClockTick(object? sender, EventArgs e)
-    {
-        RefreshTaskbarClock();
-    }
-
     private void StartWeatherBackgroundRefresh()
     {
         _weatherRefreshCts = new CancellationTokenSource();
@@ -343,6 +325,39 @@ public partial class App : Application
         return value is 30 or 60 or 120 or 240 ? value : 120;
     }
 
+    private void StartSenOnlineRefresh()
+    {
+        string rootUrl = AppSettings.Current.SenOnlineUrl;
+        if (string.IsNullOrWhiteSpace(rootUrl))
+            return;
+
+        _senOnlineCts = new CancellationTokenSource();
+        _ = RefreshSenOnlineAsync(rootUrl, _senOnlineCts.Token);
+    }
+
+    private async Task RefreshSenOnlineAsync(string rootUrl, CancellationToken cancellationToken)
+    {
+        try
+        {
+            SenScheduleOnlineService.FetchResult result =
+                await SenScheduleOnlineService.FetchIterationsAsync(rootUrl, cancellationToken);
+            if (cancellationToken.IsCancellationRequested
+                || result.Error != null
+                || result.Iterations.Count == 0)
+                return;
+
+            AppSettings settings = AppSettings.Current;
+            settings.SenSchedules ??= new List<SenScheduleIteration>();
+            SenScheduleOnlineService.MergeIterations(settings.SenSchedules, result.Iterations);
+            settings.Save();
+            RefreshCalendarSettings();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"CornerCalendar: Sen online refresh failed: {ex.Message}");
+        }
+    }
+
     private void OnWeatherTimerTick(object? sender, EventArgs e)
     {
         if (_weatherRefreshCts != null)
@@ -372,33 +387,25 @@ public partial class App : Application
         }
     }
 
-    public static void RefreshTaskbarClock(string? format = null)
-    {
-        if (Current is App app)
-            app.RefreshTaskbarClockCore(format);
-    }
-
     public static void RefreshCalendarSettings()
     {
         if (Current is App app)
             app._popup?.RefreshSettings();
     }
 
+    /// <summary>
+    /// 按已保存的跑者设置热切换托盘跑者（设置保存后调用）
+    /// </summary>
+    public static void ApplyRunnerSettings()
+    {
+        if (Current is App app)
+            app._runnerAnimator?.SetRunner(AppSettings.Current.RunnerName);
+    }
+
     public static void RefreshWeatherSettings()
     {
         if (Current is App app)
             app.RestartWeatherBackgroundRefresh();
-    }
-
-    private void RefreshTaskbarClockCore(string? format = null)
-    {
-        if (_taskbarClocks.Count == 0)
-            return;
-
-        string effectiveFormat = format ?? AppSettings.Current.TaskbarTimeFormat;
-        string text = TaskbarClockFormatter.Format(DateTime.Now, effectiveFormat);
-        foreach (TaskbarClockWindow clock in _taskbarClocks)
-            clock.UpdateText(text);
     }
 
     // 菜单项矢量图标（24x24 视口的 Path 数据：齿轮 / 电源）
@@ -464,45 +471,6 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// 调度下一次午夜托盘刷新（一次性定时器，触发后重新调度）。
-    /// 休眠/待机导致错过午夜时，唤醒后会延迟触发，仍会刷新到正确日期。
-    /// </summary>
-    private void ScheduleMidnightTrayRefresh()
-    {
-        if (_midnightTimer != null)
-        {
-            _midnightTimer.Stop();
-            _midnightTimer.Tick -= OnMidnightTick;
-        }
-
-        TimeSpan delay = DateTime.Now.Date.AddDays(1) - DateTime.Now;
-        _midnightTimer = new DispatcherTimer { Interval = delay };
-        _midnightTimer.Tick += OnMidnightTick;
-        _midnightTimer.Start();
-    }
-
-    private void OnMidnightTick(object? sender, EventArgs e)
-    {
-        RefreshTrayIcon();
-        ScheduleMidnightTrayRefresh();
-    }
-
-    private void RefreshTrayIcon()
-    {
-        if (_trayIcon == null) return;
-
-        try
-        {
-            // 托盘图标固定为 icon.ico（XAML IconSource），午夜只需刷新带日期的提示文本
-            _trayIcon.ToolTipText = $"CornerCalendar - {DateTime.Now:yyyy年M月d日 dddd}";
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"CornerCalendar: RefreshTrayIcon error: {ex.Message}");
-        }
-    }
-
-    /// <summary>
     /// 拦截器回调：点击任务栏时钟在「显示面板 / 隐藏面板」之间切换。
     /// 面板未显示 → 显示；已显示 → 隐藏（再次点击时钟即收起）。
     /// </summary>
@@ -536,35 +504,27 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// 切换日历面板显示/隐藏。用于托盘图标点击。
+    /// 切换日历面板显示/隐藏。用于托盘跑者点击：未显示则弹出，已显示则隐藏。
+    /// 面板窗口保活复用（隐藏不关闭），打开无重建成本，接近系统通知中心手感。
     /// </summary>
-    private void TogglePopup(nint monitor = default)
+    private void TogglePopup()
     {
         try
         {
-            if (_popup == null || !_popup.IsVisible)
+            if (_popup == null)
             {
-                _popup?.Close();
-                PopupWindow popup = new();
-                _popup = popup;
-                popup.Closed += (_, _) =>
-                {
-                    if (ReferenceEquals(_popup, popup))
-                        _popup = null;
-                };
-                popup.Show();
-                WindowPositionHelper.PositionNearTaskbar(popup, monitor);
-                popup.Activate();
+                _popup = new PopupWindow();
+                _popup.Closed += (_, _) => _popup = null;
             }
+
+            if (_popup.IsVisible)
+                _popup.HidePopup();
             else
-            {
-                _popup.Activate();
-            }
+                _popup.ShowPopup();
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"CornerCalendar: TogglePopup error: {ex}");
-            _popup = null;
         }
     }
 
@@ -572,22 +532,13 @@ public partial class App : Application
     {
         try
         {
-            if (_clockTimer != null)
-            {
-                _clockTimer.Stop();
-                _clockTimer.Tick -= OnClockTick;
-                _clockTimer = null;
-            }
-            foreach (TaskbarClockWindow clock in _taskbarClocks)
-                clock.Close();
-            _taskbarClocks.Clear();
-
-            if (_midnightTimer != null)
-            {
-                _midnightTimer.Stop();
-                _midnightTimer = null;
-            }
             StopWeatherBackgroundRefresh();
+            if (_senOnlineCts != null)
+            {
+                _senOnlineCts.Cancel();
+                _senOnlineCts.Dispose();
+                _senOnlineCts = null;
+            }
             if (_commandServerCts != null)
             {
                 _commandServerCts.Cancel();
@@ -595,6 +546,8 @@ public partial class App : Application
                 _commandServerCts = null;
             }
             ThemeHelper.StopSystemThemeTracking();
+            _runnerAnimator?.Dispose();
+            _runnerAnimator = null;
             _trayIcon?.Dispose();
         }
         finally

@@ -6,21 +6,27 @@
              MouseLeftButtonUp="OnDayClick">
 
     <Grid>
-        <!-- 森日程角标：位于班/休左侧，颜色由活动语义决定 -->
+        <!-- 森日程角标：左上角，与右上角班/休角标镜像对称（同尺寸 16x16、同边距），语义色浅底 + 深色文字 -->
         <Border x:Name="SenBadge"
-                Width="18" Height="18"
+                Width="16" Height="16"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Top"
-                Margin="-2,1,0,0"
-                CornerRadius="9"
+                Margin="0,2,0,0"
+                CornerRadius="8"
                 Background="{DynamicResource BackgroundBrush}"
                 Panel.ZIndex="3"
                 Visibility="Collapsed">
-            <TextBlock x:Name="SenBadgeText"
-                       FontSize="9"
-                       FontWeight="SemiBold"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center" />
+            <Grid>
+                <!-- 语义色打底降透明度形成浅色背景，主题切换时随资源键自动更新 -->
+                <Border x:Name="SenBadgeBackground"
+                        CornerRadius="8"
+                        Opacity="0.16" />
+                <TextBlock x:Name="SenBadgeText"
+                           FontSize="8"
+                           FontWeight="SemiBold"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+            </Grid>
         </Border>
 
         <!-- 法定节假日状态：休/班只占一个小角标，不参与主信息堆叠 -->

@@ -17,15 +17,10 @@
             BorderBrush="{DynamicResource BorderBrush}"
             BorderThickness="1"
             CornerRadius="12"
-            ClipToBounds="True"
-            Opacity="0"
-            RenderTransformOrigin="0.5,1">
+            ClipToBounds="True">
         <Border.LayoutTransform>
             <ScaleTransform ScaleX="1.1" ScaleY="1.1" />
         </Border.LayoutTransform>
-        <Border.RenderTransform>
-            <TranslateTransform x:Name="RootTranslate" />
-        </Border.RenderTransform>
 
         <Grid>
             <Grid.RowDefinitions>

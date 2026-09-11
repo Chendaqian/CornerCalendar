@@ -86,6 +86,12 @@ public static class SenScheduleParser
             if (title.Length == 0)
                 throw new FormatException($"第 {i + 1} 行活动名称为空");
 
+            // Owner 为可选列，缺失时为空
+            string owner = columns.TryGetValue("Owner", out int ownerIndex)
+                && cells.Count > ownerIndex
+                ? cells[ownerIndex].Trim()
+                : string.Empty;
+
             string workloadText = GetCell(cells, columns, "工作量(天)");
             int? workloadDays = null;
             if (workloadText != "-")
@@ -108,6 +114,7 @@ public static class SenScheduleParser
             {
                 Sequence = sequence,
                 Title = title,
+                Owner = owner,
                 WorkloadDays = workloadDays,
                 StartDate = startDate,
                 EndDate = endDate

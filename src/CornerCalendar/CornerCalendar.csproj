@@ -12,7 +12,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon>Resources\icon.ico</ApplicationIcon>
-    <Version>1.2.1</Version>
+    <Version>1.3.0</Version>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -22,6 +22,7 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <StartupObject>CornerCalendar.App</StartupObject>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PackageProjectUrl>https://github.com/Chendaqian/CornerCalendar</PackageProjectUrl>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
@@ -42,6 +43,7 @@
     <PackageReference Include="Ical.Net" Version="4.3.1" />
     <!-- MIT: https://github.com/6tail/lunar-csharp；提供按日期计算的黄历宜忌。 -->
     <PackageReference Include="lunar-csharp" Version="1.6.8" />
+    <PackageReference Include="YamlDotNet" Version="18.1.0" />
     <!-- 需要安装 Windows 10 SDK 后取消注释以下行 -->
     <!-- <PackageReference Include="Microsoft.Windows.CsWinRT" Version="2.1.1" /> -->
   </ItemGroup>
@@ -53,9 +55,11 @@
   <ItemGroup>
     <!-- 托盘图标和历史资料均使用程序目录中的文件；EXE 文件图标由 ApplicationIcon 单独引用 -->
     <Resource Include="Resources\icon.ico" />
-    <None Update="Resources\HistoryToday\*.json"
-          CopyToOutputDirectory="PreserveNewest"
-          CopyToPublishDirectory="PreserveNewest" />
+    <!-- 出厂默认配置：首次安装（本地无 settings.json）与恢复默认时读取 -->
+    <EmbeddedResource Include="Resources\default-settings.json" LogicalName="CornerCalendar.Resources.default-settings.json" />
+    <None Update="Resources\HistoryToday\*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <!-- 跑者动画帧（来源 RunCat365 / RunnerGallery，见设置"关于"页署名） -->
+    <None Update="Resources\Runners\**\*.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

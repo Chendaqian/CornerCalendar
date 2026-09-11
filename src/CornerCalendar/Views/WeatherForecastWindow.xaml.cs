@@ -13,15 +13,22 @@ public partial class WeatherForecastWindow : Window
 
     public void ShowForecast(WeatherInfo weather, Window mainPanel)
     {
+        UpdateForecast(weather);
+        Show();
+        UpdatePosition(mainPanel);
+    }
+
+    /// <summary>
+    /// 仅刷新城市与七天预报数据，不改变窗口可见性和位置（主窗口切换城市时联动用）。
+    /// </summary>
+    public void UpdateForecast(WeatherInfo weather)
+    {
         CityText.Text = weather.City;
         ForecastItems.ItemsSource = weather.Forecast
             .Where(day => day.Date.Date > DateTime.Today)
             .Take(7)
             .Select(day => new ForecastDisplayItem(day, WeatherIconFactory.Create(day.IconKind)))
             .ToList();
-
-        Show();
-        UpdatePosition(mainPanel);
     }
 
     private void UpdatePosition(Window mainPanel)

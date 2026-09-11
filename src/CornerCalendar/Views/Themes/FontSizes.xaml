@@ -27,6 +27,4 @@
     <!-- 农历 -->
     <s:Double x:Key="FontSizeCalendarInfo">7.5</s:Double>
     <!-- 节气/法定节假日 -->
-    <s:Double x:Key="FontSizeTaskbarClock">11</s:Double>
-    <!-- 任务栏覆盖时间 -->
 </ResourceDictionary>

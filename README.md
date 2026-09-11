@@ -18,7 +18,7 @@
   
 </div>
 
-CornerCalendar is a Windows calendar utility that replaces the taskbar calendar flyout with a compact monthly calendar. It stays in the system tray, opens from the taskbar clock, and keeps calendar information close without opening a full desktop calendar application.
+CornerCalendar is a Windows calendar utility that replaces the taskbar calendar flyout with a compact monthly calendar. It stays in the system tray as an animated runner icon that speeds up with CPU load, opens with a click on the tray runner, and keeps calendar information close without opening a full desktop calendar application.
 
 ## Features
 
@@ -28,9 +28,9 @@ CornerCalendar is a Windows calendar utility that replaces the taskbar calendar 
 - ICS subscriptions parsed by [Ical.Net](https://github.com/ical-org/ical.net), including multiple subscriptions, aliases, refresh intervals, and event-color dots.
 - Click a date to open a separate detail window showing lunar information, holidays, and that day's schedules.
 - Optional weather summary at the top of the calendar, with IP-based automatic location or manually configured cities. Multiple cities can be switched from the main panel. Weather is prefetched in the background, cached locally, and refreshed at a configurable 30/60/120/240-minute interval (120 minutes by default).
-- Custom taskbar clock format using `DateTime.ToString` patterns, including the literal `\n` for a new line.
-- System tray icon, tray context menu, startup option, light/dark/follow-system themes, configurable font size, and settings/about/update pages.
-- The taskbar clock overlay is created only on the primary display. Other displays keep the native Windows taskbar clock and notification center.
+- Animated tray runner inspired by [RunCat365](https://github.com/runcat-dev/RunCat365) with 40 bundled runners from [RunnerGallery](https://runcat-dev.github.io/RunnerGallery/): animation speed follows CPU load, dark themes are recolored automatically, and a settings tab previews and selects runners.
+- Tray context menu, startup option, light/dark/follow-system themes, configurable font size, and settings/about/update pages.
+- The taskbar is never covered or modified: every display keeps the native Windows taskbar clock and notification center.
 
 ## Requirements
 
@@ -93,7 +93,7 @@ Weather automatic location uses a public IP geolocation service; manually config
 
 ## Configuration
 
-The Settings window can configure theme, font size, startup behavior, user ICS subscriptions, ICS refresh frequency, weather locations, weather API URL, weather refresh frequency, display options, and taskbar time format. The weather refresh frequency defaults to 120 minutes and can be changed to 30, 60, or 240 minutes.
+The Settings window can configure theme, font size, startup behavior, user ICS subscriptions, ICS refresh frequency, weather locations, weather API URL, weather refresh frequency, display options, and the tray runner. The weather refresh frequency defaults to 120 minutes and can be changed to 30, 60, or 240 minutes.
 
 ## Project Layout
 
@@ -102,12 +102,12 @@ src/
 ├── CornerCalendar.sln
 ├── CornerCalendar.Tests/
 └── CornerCalendar/
-    ├── App.xaml(.cs)                 # composition root, tray, taskbar clock, lifecycle
-    ├── Core/Models/                   # calendar, ChinaCalendar, and weather models
+    ├── App.xaml(.cs)                 # composition root, tray runner animation, lifecycle
+    ├── Core/Models/                   # calendar, ChinaCalendar, weather, and runner models
     ├── Core/Services/                 # settings, ICS, ChinaCalendar, and weather services
-    ├── Core/Helpers/                  # Win32, theme, lunar, startup, and icon helpers
+    ├── Core/Helpers/                  # Win32, theme, lunar, startup, runner animation, and icon helpers
     ├── ViewModels/                    # calendar and event presentation logic
-    └── Views/                         # popup, settings, detail, taskbar, and controls
+    └── Views/                         # popup, settings, detail, and controls
 ```
 
 ## Calendar Data Source

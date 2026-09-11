@@ -7,8 +7,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
-using System.Windows.Threading;
 
 namespace CornerCalendar.Views;
 
@@ -24,6 +22,7 @@ public partial class PopupWindow : Window
     private readonly List<string> _weatherLocations;
     private CancellationTokenSource? _weatherLoadCts;
     private int _weatherIndex;
+    private bool _pendingForecastOpen;    // 天气加载中用户点击了天气区：数据到达后立即打开七天天气窗口
 
     public PopupWindow()
     {
@@ -62,8 +61,8 @@ public partial class PopupWindow : Window
         // 主面板激活后支持使用左右方向键切换月份
         PreviewKeyDown += OnPreviewKeyDown;
 
-        // 每次变为可见（首次弹出 / 从隐藏恢复）播放入场动画，避免生硬出现
-        IsVisibleChanged += OnVisibilityChanged;
+        // 构造期即预载天气：配合 App 启动空闲预建窗口，首次点击托盘也能秒开
+        StartWeatherLoad();
     }
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -80,52 +79,27 @@ public partial class PopupWindow : Window
         }
     }
 
-    private void OnVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e)
-    {
-        if (e.NewValue is true)
-        {
-            // 窗口先保持透明，等定位和布局完成后再设置起始位移，避免先绘制最终位置造成闪烁。
-            RootBorder.Opacity = 0;
-            RootTranslate.BeginAnimation(TranslateTransform.YProperty, null);
-            Dispatcher.BeginInvoke(new Action(PlayShowAnimation), DispatcherPriority.Render);
-        }
-    }
-
-    /// <summary>
-    /// 入场动画：整个面板从窗口底边（任务栏方向）滑出直到最终位置。
-    /// 窗口本身贴近任务栏定位，起始偏移量 = 面板高度，偏移部分被窗口边界裁剪，
-    /// 视觉上即"从任务栏里弹出"。
-    /// </summary>
-    private void PlayShowAnimation()
-    {
-        UpdateLayout();
-
-        // 多留一小段距离，让面板完全从任务栏方向外进入，视觉行程与放大后的面板高度匹配。
-        double distance = Math.Max(RootBorder.ActualHeight, ActualHeight) + 16;
-        if (distance <= 0)
-        {
-            RootBorder.Opacity = 1;
-            return;
-        }
-
-        RootTranslate.Y = distance;
-        RootBorder.Opacity = 1;
-
-        CubicEase ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-        DoubleAnimation slide = new DoubleAnimation(distance, 0, TimeSpan.FromMilliseconds(360))
-        {
-            EasingFunction = ease
-        };
-        RootTranslate.BeginAnimation(TranslateTransform.YProperty, slide);
-    }
-
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         ApplySettings();
         UpdateNoEventsVisibility();
         UpdateErrorVisibility();
         UpdateWeatherPage();
+    }
+
+    /// <summary>
+    /// 显示面板：立即弹出并定位到任务栏旁，无入场动画。
+    /// </summary>
+    /// <remark>
+    /// 设置与日历数据在隐藏期间已由 App.RefreshCalendarSettings 同步；
+    /// 窗口实例保活复用，打开无重建成本。
+    /// </remark>
+    public void ShowPopup()
+    {
         StartWeatherLoad();
+        Show();
+        WindowPositionHelper.PositionNearTaskbar(this);
+        Activate();
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -194,6 +168,7 @@ public partial class PopupWindow : Window
             if (weather == null)
             {
                 _currentWeather = null;
+                _pendingForecastOpen = false;
                 WeatherSummaryText.Text = "天气获取失败";
                 WeatherSection.ToolTip = "天气获取失败";
                 return;
@@ -218,6 +193,7 @@ public partial class PopupWindow : Window
                 $"能见度：{weather.Visibility / 1000:F1} km\n" +
                 $"日出日落：{today?.Sunrise ?? "--:--"} / {today?.Sunset ?? "--:--"}\n" +
                 "点击查看未来七天天气";
+            SyncWeatherForecastWindow(weather);
         }
         catch (OperationCanceledException)
         {
@@ -226,7 +202,29 @@ public partial class PopupWindow : Window
         catch
         {
             if (!cancellationToken.IsCancellationRequested && index == _weatherIndex)
+            {
+                _pendingForecastOpen = false;
                 WeatherSummaryText.Text = "天气获取失败";
+            }
+        }
+    }
+
+    /// <summary>
+    /// 天气数据到达后同步七天天气窗口：已打开则刷新为当前城市；有待打开请求则立即打开。
+    /// </summary>
+    private void SyncWeatherForecastWindow(WeatherInfo weather)
+    {
+        if (_weatherForecastWindow?.IsVisible == true)
+        {
+            _weatherForecastWindow.UpdateForecast(weather);
+            return;
+        }
+
+        if (_pendingForecastOpen)
+        {
+            _pendingForecastOpen = false;
+            _weatherForecastWindow ??= new WeatherForecastWindow();
+            _weatherForecastWindow.ShowForecast(weather, this);
         }
     }
 
@@ -247,17 +245,21 @@ public partial class PopupWindow : Window
         if (IsInsideButton(e.OriginalSource as DependencyObject))
             return;
 
-        if (_currentWeather?.Forecast.Count > 0)
+        if (_weatherForecastWindow?.IsVisible == true)
         {
-            if (_weatherForecastWindow?.IsVisible == true)
-            {
-                _weatherForecastWindow.Hide();
-                e.Handled = true;
-                return;
-            }
-
+            // 已打开：点击天气区收起
+            _weatherForecastWindow.Hide();
+            _pendingForecastOpen = false;
+        }
+        else if (_currentWeather?.Forecast.Count > 0)
+        {
             _weatherForecastWindow ??= new WeatherForecastWindow();
             _weatherForecastWindow.ShowForecast(_currentWeather, this);
+        }
+        else
+        {
+            // 天气仍在加载：数据到达后立即打开，点击不再有"死区"
+            _pendingForecastOpen = true;
         }
 
         e.Handled = true;
@@ -269,7 +271,11 @@ public partial class PopupWindow : Window
         {
             if (element is Button)
                 return true;
-            element = System.Windows.Media.VisualTreeHelper.GetParent(element);
+            // 点击彩色内联文本时 OriginalSource 是 Run（ContentElement 而非 Visual），
+            // VisualTreeHelper 会抛异常，需改走逻辑树（Run → TextBlock → …）
+            element = element is System.Windows.Media.Visual or System.Windows.Media.Media3D.Visual3D
+                ? System.Windows.Media.VisualTreeHelper.GetParent(element)
+                : LogicalTreeHelper.GetParent(element);
         }
 
         return false;
@@ -315,6 +321,8 @@ public partial class PopupWindow : Window
     private void UpdateSenScheduleButton()
     {
         bool enabled = _settings.SenScheduleEnabled;
+        // 设置里关闭森日程总开关时，主窗口不展示森按钮
+        SenScheduleButton.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
         SenScheduleButton.Background = enabled
             ? (Brush)FindResource("SelectedBrush")
             : Brushes.Transparent;
@@ -366,32 +374,18 @@ public partial class PopupWindow : Window
         }
     }
 
-    private bool _isHidingAnimated;
-
     /// <summary>
-    /// 带动画关闭：面板向任务栏方向下滑后关闭（与入场动画对称）。
+    /// 隐藏面板：子窗口一并收起后立即隐藏，无退场动画。
+    /// 窗口实例保留复用；真正释放发生在应用退出关闭时。
     /// </summary>
-    public void HideAnimated()
+    public void HidePopup()
     {
-        if (!IsVisible || _isHidingAnimated)
+        if (!IsVisible)
             return;
 
         CloseWeatherForecastWindow();
-        _isHidingAnimated = true;
-
-        double distance = Math.Max(RootBorder.ActualHeight, 1);
-        CubicEase ease = new CubicEase { EasingMode = EasingMode.EaseIn };
-        DoubleAnimation slide = new DoubleAnimation(0, distance, TimeSpan.FromMilliseconds(200))
-        {
-            EasingFunction = ease
-        };
-        slide.Completed += (s, e) =>
-        {
-            _isHidingAnimated = false;
-            RootTranslate.Y = 0;
-            Close();
-        };
-        RootTranslate.BeginAnimation(TranslateTransform.YProperty, slide);
+        CloseDetailWindow();
+        Hide();
     }
 
     /// <summary>
@@ -574,7 +568,6 @@ public partial class PopupWindow : Window
 
     private void OnClosePopupClick(object sender, RoutedEventArgs e)
     {
-        CloseDetailWindow();
-        HideAnimated();
+        HidePopup();
     }
 }

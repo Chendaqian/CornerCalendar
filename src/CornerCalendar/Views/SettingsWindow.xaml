@@ -276,6 +276,7 @@
                     <ListBoxItem Content="天气" />
                     <ListBoxItem Content="今昔" />
                     <ListBoxItem Content="显示" />
+                    <ListBoxItem Content="跑者" />
                     <ListBoxItem Content="关于" />
                 </ListBox>
             </Border>
@@ -487,17 +488,26 @@
                                       ToolTip="在主日历中显示森日程" />
                         </Grid>
 
-                        <TextBlock Text="选择 Excel 工作簿；每个工作表对应一个迭代，工作表名称作为迭代名称。"
+                        <CheckBox x:Name="SenPhaseCircleCheckBox"
+                                  Content="在主窗口日期上显示森日程阶段圆圈"
+                                  FontSize="{DynamicResource FontSizeBody}"
+                                  Foreground="{DynamicResource TextPrimaryBrush}"
+                                  Margin="0,0,0,14" />
+
+                        <TextBlock Text="在线迭代"
+                                   FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   Margin="0,4,0,6" />
+                        <TextBlock Text="填写在线数据根地址，应用拉取其下 manifest.yaml 清单与各迭代 Markdown 数据；启动时自动拉取，同名迭代以在线数据覆盖本地（保留眼睛开关），清空地址则停用。"
                                    FontSize="{DynamicResource FontSizeFootnote}"
                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                    TextWrapping="Wrap"
-                                   Margin="0,0,0,16" />
-
-                        <TextBlock Text="Excel 工作簿"
-                                   FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                   Margin="0,0,0,6" />
-                        <Button Content="选择 Excel 文件并导入"
+                                   Margin="0,0,0,8" />
+                        <TextBox x:Name="SenOnlineUrlTextBox"
+                                 Padding="8,6"
+                                 Margin="0,0,0,8" />
+                        <Button x:Name="SenOnlineRefreshButton"
+                                Content="刷新在线迭代"
                                 HorizontalAlignment="Left"
                                 Padding="12,6"
                                 Background="{DynamicResource TodayAccentBrush}"
@@ -505,10 +515,10 @@
                                 BorderThickness="0"
                                 FontWeight="SemiBold"
                                 Cursor="Hand"
-                                Click="OnImportSenScheduleExcel" />
-                        <TextBlock x:Name="SenImportErrorText"
+                                Click="OnRefreshSenOnlineClick" />
+                        <TextBlock x:Name="SenOnlineStatusText"
                                    FontSize="{DynamicResource FontSizeFootnote}"
-                                   Foreground="{DynamicResource WorkdayBadgeTextBrush}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                    TextWrapping="Wrap"
                                    Margin="0,8,0,14"
                                    Visibility="Collapsed" />
@@ -946,36 +956,49 @@
                                   FontSize="{DynamicResource FontSizeBody}"
                                   Foreground="{DynamicResource TextPrimaryBrush}"
                                   Margin="0,0,0,20" />
+                    </StackPanel>
 
-                        <TextBlock Text="任务栏时间格式" FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
-                        <TextBox x:Name="TaskbarTimeFormatTextBox"
-                                 Padding="8,6"
-                                 FontFamily="Consolas"
-                                 TextChanged="OnTaskbarTimeFormatChanged" />
-                        <TextBlock Text="使用 DateTime.ToString 格式，输入 \n 可换行"
+                    <!-- 跑者 -->
+                    <StackPanel x:Name="RunnerPanel" Visibility="Collapsed">
+                        <TextBlock Text="跑者"
+                                   FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,18" />
+                        <TextBlock Text="点击跑者选中，应用或保存后生效；托盘动画帧速随 CPU 负载动态变化。"
                                    FontSize="{DynamicResource FontSizeFootnote}"
                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                    TextWrapping="Wrap"
-                                   Margin="0,6,0,8" />
-                        <Border Background="{DynamicResource HoverBrush}"
-                                BorderBrush="{DynamicResource SeparatorBrush}"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Padding="12,10"
-                                Margin="0,0,0,20">
-                            <StackPanel>
-                                <TextBlock Text="预览"
-                                           FontSize="{DynamicResource FontSizeSecondary}"
-                                           Foreground="{DynamicResource TextSecondaryBrush}" />
-                                <TextBlock x:Name="TaskbarTimePreview"
-                                           FontSize="{DynamicResource FontSizeSubtitle}"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextPrimaryBrush}"
-                                           TextAlignment="Center"
-                                           Margin="0,6,0,0" />
-                            </StackPanel>
-                        </Border>
+                                   Margin="0,0,0,14" />
+                        <ItemsControl x:Name="RunnerGallery">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+
+                        <!-- 跑者动画来源署名 -->
+                        <TextBlock Text="跑者动画"
+                                   FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,18,0,8" />
+                        <TextBlock FontSize="{DynamicResource FontSizeBody}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,4">
+                            <Run Text="参考项目："
+                                 Foreground="{DynamicResource TextSecondaryBrush}" />
+                            <Hyperlink Click="OnRunCatLinkClick" Cursor="Hand">
+                                <Run Text="https://github.com/runcat-dev/RunCat365"
+                                     Foreground="{DynamicResource TodayAccentBrush}" />
+                            </Hyperlink>
+                        </TextBlock>
+                        <TextBlock FontSize="{DynamicResource FontSizeBody}"
+                                   TextWrapping="Wrap">
+                            <Run Text="跑者资源来源："
+                                 Foreground="{DynamicResource TextSecondaryBrush}" />
+                            <Hyperlink Click="OnRunnerGalleryLinkClick" Cursor="Hand">
+                                <Run Text="https://runcat-dev.github.io/RunnerGallery/"
+                                     Foreground="{DynamicResource TodayAccentBrush}" />
+                            </Hyperlink>
+                        </TextBlock>
                     </StackPanel>
 
                     <!-- 关于 -->
@@ -994,7 +1017,7 @@
                         <TextBlock Text="开源库"
                                    FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
-                        <TextBlock Text="CommunityToolkit.Mvvm 8.3.0&#10;Hardcodet.NotifyIcon.Wpf 2.0.1&#10;Ical.Net 4.3.1&#10;lunar-csharp 1.6.8"
+                        <TextBlock Text="CommunityToolkit.Mvvm 8.3.0&#10;Hardcodet.NotifyIcon.Wpf 2.0.1&#10;Ical.Net 4.3.1&#10;lunar-csharp 1.6.8&#10;YamlDotNet 18.1.0"
                                    FontSize="{DynamicResource FontSizeBody}"
                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                    TextWrapping="Wrap"

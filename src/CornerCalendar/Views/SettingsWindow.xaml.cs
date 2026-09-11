@@ -13,6 +13,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 
 namespace CornerCalendar.Views;
@@ -115,6 +117,7 @@ public partial class SettingsWindow : Window
         FooterVersionText.Text = $"v{AppVersion}";
         AboutVersionText.Text = $"版本：v{AppVersion}";
 
+        InitializeRunnerGallery();
         LoadSettings();
         _initialized = true;
         UpdateCategoryVisibility();
@@ -171,6 +174,8 @@ public partial class SettingsWindow : Window
         IcsRefreshCombo.SelectedIndex = refreshIdx >= 0 ? refreshIdx : 1;
 
         SenScheduleEnabledCheckBox.IsChecked = _settings.SenScheduleEnabled;
+        SenPhaseCircleCheckBox.IsChecked = _settings.ShowSenPhaseCircles;
+        SenOnlineUrlTextBox.Text = _settings.SenOnlineUrl;
         SetSenSchedules(_settings.SenSchedules ?? new List<SenScheduleIteration>());
 
         WeatherApiUrlTextBox.Text = string.IsNullOrWhiteSpace(_settings.WeatherApiUrl)
@@ -227,11 +232,8 @@ public partial class SettingsWindow : Window
         WeekStartMonday.IsChecked = _settings.WeekStartDay == WeekStartDay.Monday;
         ShowWeekNumbersCheckBox.IsChecked = _settings.ShowWeekNumbers;
 
-        // #12 任务栏时间格式
-        TaskbarTimeFormatTextBox.Text = string.IsNullOrWhiteSpace(_settings.TaskbarTimeFormat)
-            ? TaskbarClockFormatter.DefaultFormat
-            : _settings.TaskbarTimeFormat;
-        UpdateTaskbarTimePreview();
+        // 托盘跑者选中回显（缺失时回退默认）
+        SelectRunnerCardByName(_settings.RunnerName);
 
         // 字体大小滑块事件
         FontSizeSlider.ValueChanged += (_, _) => UpdateFontSizeLabel();
@@ -260,66 +262,56 @@ public partial class SettingsWindow : Window
         App.RefreshCalendarSettings();
     }
 
-    private void OnImportSenScheduleExcel(object sender, RoutedEventArgs e)
+    private void OnRefreshSenOnlineClick(object sender, RoutedEventArgs e)
     {
-        SenImportErrorText.Visibility = Visibility.Collapsed;
+        SenOnlineRefreshButton.IsEnabled = false;
+        ShowSenOnlineStatus("正在拉取在线迭代...", true);
+        _ = RefreshSenOnlineAsync();
+    }
 
-        OpenFileDialog dialog = new()
-        {
-            Title = "选择森日程 Excel 工作簿",
-            Filter = "Excel 工作簿 (*.xlsx;*.xlsm)|*.xlsx;*.xlsm",
-            CheckFileExists = true,
-            Multiselect = false
-        };
-        if (dialog.ShowDialog(this) != true)
-            return;
-
+    private async Task RefreshSenOnlineAsync()
+    {
         try
         {
-            IReadOnlyList<SenScheduleIteration> parsed = SenScheduleExcelParser.Parse(dialog.FileName);
-            List<SenScheduleIteration> existing = parsed
-                .Where(item => _senSchedules.Any(iteration =>
-                    string.Equals(iteration.Name, item.Name, StringComparison.Ordinal)))
-                .ToList();
-            if (existing.Count > 0)
+            string rootUrl = SenOnlineUrlTextBox.Text.Trim();
+            if (rootUrl.Length == 0)
             {
-                string names = string.Join("、", existing.Select(item => item.Name));
-                MessageBoxResult result = MessageBox.Show(
-                    $"以下迭代已存在：{names}\n是否用工作簿中的数据更新？",
-                    "更新森日程",
-                    MessageBoxButton.OKCancel,
-                    MessageBoxImage.Question);
-                if (result != MessageBoxResult.OK)
-                    return;
+                _settings.SenOnlineUrl = string.Empty;
+                PersistSenSchedules();
+                ShowSenOnlineStatus("在线数据地址为空，已停用在线拉取", false);
+                return;
             }
 
-            foreach (SenScheduleIteration item in parsed)
+            SenScheduleOnlineService.FetchResult result =
+                await SenScheduleOnlineService.FetchIterationsAsync(rootUrl);
+            if (result.Error != null && !result.FromCache)
             {
-                SenScheduleIteration? previous = _senSchedules.FirstOrDefault(iteration =>
-                    string.Equals(iteration.Name, item.Name, StringComparison.Ordinal));
-                if (previous is null)
-                {
-                    _senSchedules.Add(item);
-                    continue;
-                }
-
-                int index = _senSchedules.IndexOf(previous);
-                item.Id = previous.Id;
-                _senSchedules[index] = item;
+                ShowSenOnlineStatus($"在线拉取失败：{result.Error}", false);
+                return;
             }
 
+            SenScheduleOnlineService.MergeIterations(_senSchedules, result.Iterations);
+            _settings.SenOnlineUrl = rootUrl;
             PersistSenSchedules();
             RefreshSenScheduleList();
-            SenImportErrorText.Text = $"已导入 {parsed.Count} 个迭代";
-            SenImportErrorText.SetResourceReference(TextBlock.ForegroundProperty, "TodayAccentBrush");
-            SenImportErrorText.Visibility = Visibility.Visible;
+            ShowSenOnlineStatus(result.FromCache
+                ? $"在线拉取失败，已使用上次缓存（{result.Iterations.Count} 个迭代）：{result.Error}"
+                : $"已拉取 {result.Iterations.Count} 个在线迭代",
+                !result.FromCache);
         }
-        catch (Exception ex) when (ex is FormatException or IOException or UnauthorizedAccessException)
+        finally
         {
-            SenImportErrorText.Text = ex.Message;
-            SenImportErrorText.SetResourceReference(TextBlock.ForegroundProperty, "WorkdayBadgeTextBrush");
-            SenImportErrorText.Visibility = Visibility.Visible;
+            SenOnlineRefreshButton.IsEnabled = true;
         }
+    }
+
+    private void ShowSenOnlineStatus(string message, bool success)
+    {
+        SenOnlineStatusText.Text = message;
+        SenOnlineStatusText.SetResourceReference(
+            TextBlock.ForegroundProperty,
+            success ? "TodayAccentBrush" : "WorkdayBadgeTextBrush");
+        SenOnlineStatusText.Visibility = Visibility.Visible;
     }
 
     private void OnPreviewSenSchedule(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -472,22 +464,6 @@ public partial class SettingsWindow : Window
 
         _selectedIcsUrl = null;
         RefreshIcsUrlList();
-    }
-
-    private void OnTaskbarTimeFormatChanged(object sender, TextChangedEventArgs e)
-    {
-        if (_initialized)
-            UpdateTaskbarTimePreview();
-    }
-
-    private void UpdateTaskbarTimePreview()
-    {
-        if (TaskbarTimePreview == null || TaskbarTimeFormatTextBox == null)
-            return;
-
-        TaskbarTimePreview.Text = TaskbarClockFormatter.Format(
-            DateTime.Now,
-            TaskbarTimeFormatTextBox.Text);
     }
 
     /// <summary>
@@ -716,7 +692,171 @@ public partial class SettingsWindow : Window
         WeatherPanel.Visibility = selectedIndex == 4 ? Visibility.Visible : Visibility.Collapsed;
         HistoryPanel.Visibility = selectedIndex == 5 ? Visibility.Visible : Visibility.Collapsed;
         DisplayPanel.Visibility = selectedIndex == 6 ? Visibility.Visible : Visibility.Collapsed;
-        AboutPanel.Visibility = selectedIndex == 7 ? Visibility.Visible : Visibility.Collapsed;
+        RunnerPanel.Visibility = selectedIndex == 7 ? Visibility.Visible : Visibility.Collapsed;
+        AboutPanel.Visibility = selectedIndex == 8 ? Visibility.Visible : Visibility.Collapsed;
+
+        // 跑者预览动画仅在该分类可见时运行
+        if (selectedIndex == 7)
+            StartRunnerPreview();
+        else
+            StopRunnerPreview();
+    }
+
+    /// <summary>
+    /// 跑者预览卡片：帧缓存、预览图与选中态载体
+    /// </summary>
+    private sealed class RunnerCardItem
+    {
+        internal RunnerInfo Runner { get; }
+        internal IReadOnlyList<BitmapImage> Frames { get; }
+        internal Border Card { get; }
+        internal Image Preview { get; }
+        internal int FrameIndex { get; set; }
+
+        internal RunnerCardItem(
+            RunnerInfo runner,
+            IReadOnlyList<BitmapImage> frames,
+            Border card,
+            Image preview)
+        {
+            Runner = runner;
+            Frames = frames;
+            Card = card;
+            Preview = preview;
+        }
+    }
+
+    private const int RunnerPreviewIntervalMs = 200;
+
+    private readonly List<RunnerCardItem> _runnerCards = new(40);
+    private DispatcherTimer? _runnerPreviewTimer;
+    private RunnerCardItem? _selectedRunnerCard;
+
+    /// <summary>
+    /// 构建跑者预览画廊：每个跑者一张卡片（动画预览 + 显示名 + 选中态边框）。
+    /// </summary>
+    private void InitializeRunnerGallery()
+    {
+        IReadOnlyList<RunnerInfo> runners = RunnerLibrary.EnumerateRunners();
+        foreach (RunnerInfo runner in runners)
+        {
+            List<BitmapImage> frames = new(runner.FramePaths.Count);
+            foreach (string path in runner.FramePaths)
+            {
+                BitmapImage? frame = TryLoadFrameImage(path);
+                if (frame != null)
+                    frames.Add(frame);
+            }
+            if (frames.Count == 0)
+                continue;
+
+            Image preview = new()
+            {
+                Height = 36,
+                Stretch = Stretch.Uniform,
+                Source = frames[0]
+            };
+            TextBlock nameLabel = new()
+            {
+                Text = runner.DisplayName,
+                TextAlignment = TextAlignment.Center,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 6, 0, 0)
+            };
+            nameLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+            nameLabel.SetResourceReference(TextBlock.FontSizeProperty, "FontSizeFootnote");
+            StackPanel content = new()
+            {
+                Width = 120,
+                Margin = new Thickness(10, 8, 10, 8)
+            };
+            content.Children.Add(preview);
+            content.Children.Add(nameLabel);
+            Border card = new()
+            {
+                BorderThickness = new Thickness(2),
+                CornerRadius = new CornerRadius(8),
+                Margin = new Thickness(0, 0, 10, 10),
+                Cursor = Cursors.Hand,
+                Child = content
+            };
+            card.SetResourceReference(Border.BackgroundProperty, "CardBackgroundBrush");
+            card.SetResourceReference(Border.BorderBrushProperty, "SeparatorBrush");
+
+            RunnerCardItem item = new(runner, frames, card, preview);
+            card.MouseLeftButtonUp += (_, _) => SelectRunnerCard(item);
+            _runnerCards.Add(item);
+            RunnerGallery.Items.Add(card);
+        }
+    }
+
+    private static BitmapImage? TryLoadFrameImage(string path)
+    {
+        try
+        {
+            BitmapImage image = new();
+            image.BeginInit();
+            image.CacheOption = BitmapCacheOption.OnLoad;
+            image.UriSource = new Uri(path, UriKind.Absolute);
+            image.EndInit();
+            image.Freeze();
+            return image;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"CornerCalendar: 跑者帧 '{path}' 加载失败：{ex.Message}");
+            return null;
+        }
+    }
+
+    private void SelectRunnerCard(RunnerCardItem card)
+    {
+        if (ReferenceEquals(_selectedRunnerCard, card))
+            return;
+
+        if (_selectedRunnerCard != null)
+            _selectedRunnerCard.Card.SetResourceReference(Border.BorderBrushProperty, "SeparatorBrush");
+        _selectedRunnerCard = card;
+        card.Card.SetResourceReference(Border.BorderBrushProperty, "TodayAccentBrush");
+    }
+
+    private void SelectRunnerCardByName(string? runnerName)
+    {
+        RunnerCardItem? card = _runnerCards.FirstOrDefault(item =>
+                string.Equals(item.Runner.Name, runnerName, StringComparison.OrdinalIgnoreCase))
+            ?? _runnerCards.FirstOrDefault(item =>
+                string.Equals(item.Runner.Name, RunnerLibrary.DefaultRunnerName, StringComparison.OrdinalIgnoreCase))
+            ?? _runnerCards.FirstOrDefault();
+        if (card != null)
+            SelectRunnerCard(card);
+    }
+
+    private void StartRunnerPreview()
+    {
+        if (_runnerCards.Count == 0)
+            return;
+
+        if (_runnerPreviewTimer == null)
+        {
+            _runnerPreviewTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(RunnerPreviewIntervalMs)
+            };
+            _runnerPreviewTimer.Tick += OnRunnerPreviewTick;
+        }
+        _runnerPreviewTimer.Start();
+    }
+
+    private void StopRunnerPreview()
+        => _runnerPreviewTimer?.Stop();
+
+    private void OnRunnerPreviewTick(object? sender, EventArgs e)
+    {
+        foreach (RunnerCardItem card in _runnerCards)
+        {
+            card.FrameIndex = (card.FrameIndex + 1) % card.Frames.Count;
+            card.Preview.Source = card.Frames[card.FrameIndex];
+        }
     }
 
     private async Task LoadHolidayFiltersAsync()
@@ -1265,6 +1405,8 @@ public partial class SettingsWindow : Window
         _settings.IcsAliases = _icsUrls.Select(u => u.Alias ?? "").ToList();
         _settings.IcsRefreshMinutes = IcsRefreshValues[IcsRefreshCombo.SelectedIndex];
         _settings.SenScheduleEnabled = SenScheduleEnabledCheckBox.IsChecked == true;
+        _settings.ShowSenPhaseCircles = SenPhaseCircleCheckBox.IsChecked == true;
+        _settings.SenOnlineUrl = SenOnlineUrlTextBox.Text.Trim();
         _settings.SenSchedules = _senSchedules.ToList();
         if (_holidayFiltersLoaded)
         {
@@ -1314,14 +1456,13 @@ public partial class SettingsWindow : Window
             : WeekStartDay.Sunday;
         _settings.ShowWeekNumbers = ShowWeekNumbersCheckBox.IsChecked == true;
 
-        // #12 任务栏时间格式
-        _settings.TaskbarTimeFormat = string.IsNullOrWhiteSpace(TaskbarTimeFormatTextBox.Text)
-            ? TaskbarClockFormatter.DefaultFormat
-            : TaskbarTimeFormatTextBox.Text.Trim();
+        // 托盘跑者
+        if (_selectedRunnerCard != null)
+            _settings.RunnerName = _selectedRunnerCard.Runner.Name;
 
         // 持久化
         _settings.Save();
-        App.RefreshTaskbarClock(_settings.TaskbarTimeFormat);
+        App.ApplyRunnerSettings();
         App.RefreshCalendarSettings();
         App.RefreshWeatherSettings();
 
@@ -1348,8 +1489,9 @@ public partial class SettingsWindow : Window
         SetIcsUrlItems(defaults.IcsUrls, defaults.IcsAliases);
         IcsRefreshCombo.SelectedIndex = Array.IndexOf(IcsRefreshValues, defaults.IcsRefreshMinutes);
         SenScheduleEnabledCheckBox.IsChecked = defaults.SenScheduleEnabled;
+        SenPhaseCircleCheckBox.IsChecked = defaults.ShowSenPhaseCircles;
+        SenOnlineUrlTextBox.Text = defaults.SenOnlineUrl;
         _senSchedules.Clear();
-        SenImportErrorText.Visibility = Visibility.Collapsed;
         RefreshSenScheduleList();
         foreach (HolidayFilterOption option in _holidayFilterOptions)
             option.IsEnabled = true;
@@ -1382,7 +1524,7 @@ public partial class SettingsWindow : Window
         WeekStartSunday.IsChecked = defaults.WeekStartDay == WeekStartDay.Sunday;
         WeekStartMonday.IsChecked = defaults.WeekStartDay == WeekStartDay.Monday;
         ShowWeekNumbersCheckBox.IsChecked = defaults.ShowWeekNumbers;
-        TaskbarTimeFormatTextBox.Text = defaults.TaskbarTimeFormat;
+        SelectRunnerCardByName(defaults.RunnerName);
     }
 
     private void ApplyAutoStartup(bool enable)
@@ -1434,6 +1576,18 @@ public partial class SettingsWindow : Window
         catch { }
     }
 
+    private void OnRunCatLinkClick(object sender, RoutedEventArgs e)
+    {
+        OpenExternalUrl("https://github.com/runcat-dev/RunCat365");
+        e.Handled = true;
+    }
+
+    private void OnRunnerGalleryLinkClick(object sender, RoutedEventArgs e)
+    {
+        OpenExternalUrl("https://runcat-dev.github.io/RunnerGallery/");
+        e.Handled = true;
+    }
+
     private void OnCloseClick(object sender, RoutedEventArgs e)
     {
         Close();
@@ -1446,5 +1600,14 @@ public partial class SettingsWindow : Window
     {
         base.OnMouseLeftButtonDown(e);
         DragMove();
+    }
+
+    /// <summary>
+    /// 窗口关闭时停止跑者预览动画，避免定时器悬挂
+    /// </summary>
+    protected override void OnClosed(EventArgs e)
+    {
+        StopRunnerPreview();
+        base.OnClosed(e);
     }
 }

@@ -42,8 +42,6 @@
     <Color x:Key="HistoryEventColor">#FF0078D4</Color>
     <Color x:Key="HistoryBirthColor">#FF2E8B57</Color>
     <Color x:Key="HistoryDeathColor">#FFB04A5A</Color>
-    <Color x:Key="TaskbarClockTextColor">#FF1A1A1A</Color>
-    <Color x:Key="TaskbarClockFallbackColor">#FFF3F3F3</Color>
 
     <!-- 森日程阶段圆圈与角标语义色 -->
     <Color x:Key="SenCircleTr1Color">#FFD83B01</Color>
@@ -88,8 +86,6 @@
     <SolidColorBrush x:Key="HistoryEventBrush" Color="{StaticResource HistoryEventColor}" />
     <SolidColorBrush x:Key="HistoryBirthBrush" Color="{StaticResource HistoryBirthColor}" />
     <SolidColorBrush x:Key="HistoryDeathBrush" Color="{StaticResource HistoryDeathColor}" />
-    <SolidColorBrush x:Key="TaskbarClockTextBrush" Color="{StaticResource TaskbarClockTextColor}" />
-    <SolidColorBrush x:Key="TaskbarClockFallbackBrush" Color="{StaticResource TaskbarClockFallbackColor}" />
     <SolidColorBrush x:Key="SenCircleTr1Brush" Color="{StaticResource SenCircleTr1Color}" />
     <SolidColorBrush x:Key="SenCircleTr2Brush" Color="{StaticResource SenCircleTr2Color}" />
     <SolidColorBrush x:Key="SenCircleTr3Brush" Color="{StaticResource SenCircleTr3Color}" />

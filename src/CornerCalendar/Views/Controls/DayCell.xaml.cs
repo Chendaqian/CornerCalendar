@@ -226,13 +226,17 @@ public partial class DayCell : UserControl
             cell.SenBadgeText.SetResourceReference(
                 TextBlock.ForegroundProperty,
                 badgeColorKey);
+            cell.SenBadgeBackground.SetResourceReference(
+                Border.BackgroundProperty,
+                badgeColorKey);
             cell.SenBadge.Visibility = Visibility.Visible;
         }
 
-        // 阶段圆圈表示森日程活动范围，即使当天是周末或调休上班日也应显示。
-        // 选中和今日状态仍保持现有蓝色/填充圆圈。
+        // 阶段圆圈表示森日程活动范围，即使当天是周末或调休上班日也应显示；
+        // 可在设置的森日程分类中关闭。选中和今日状态仍保持现有蓝色/填充圆圈。
         if (!day.IsToday
             && !cell.IsSelected
+            && AppSettings.Current.ShowSenPhaseCircles
             && !string.IsNullOrWhiteSpace(primary.CircleColorKey))
         {
             cell.SenCircle.SetResourceReference(
