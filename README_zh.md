@@ -10,7 +10,7 @@
 [![GitHub Downloads](https://img.shields.io/github/downloads/Chendaqian/CornerCalendar/total?style=flat)](https://github.com/Chendaqian/CornerCalendar/releases/latest)
 [![GitHub Last Commit](https://img.shields.io/github/last-commit/Chendaqian/CornerCalendar?style=flat)](https://github.com/Chendaqian/CornerCalendar/commits/master)
 
-**[English](README.md) | 简体中文| [WIKI](https://github.com/Chendaqian/CornerCalendar/wiki)**
+**[English](README.md) | 简体中文 | [WIKI](https://github.com/Chendaqian/CornerCalendar/wiki)**
 
 <div align="center">
   
