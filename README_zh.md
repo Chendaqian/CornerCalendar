@@ -14,7 +14,7 @@
 
 <div align="center">
   
-  ![icon](https://raw.githubusercontent.com/Chendaqian/CornerCalendar/refs/heads/master/src/CornerCalendar/Resources/mainInfo.png)
+  ![icon](https://raw.githubusercontent.com/Chendaqian/CornerCalendar/refs/heads/master/src/CornerCalendar/Resources/icon.png)
   
 </div>
 
