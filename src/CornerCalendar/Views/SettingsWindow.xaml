@@ -275,7 +275,6 @@
                     <ListBoxItem Content="节日" />
                     <ListBoxItem Content="天气" />
                     <ListBoxItem Content="今昔" />
-                    <ListBoxItem Content="显示" />
                     <ListBoxItem Content="跑者" />
                     <ListBoxItem Content="关于" />
                 </ListBox>
@@ -304,6 +303,62 @@
                             <CheckBox Grid.Column="1" x:Name="AutoStartupCheckBox"
                                       VerticalAlignment="Center" />
                         </Grid>
+
+                        <TextBlock Text="颜色主题" FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
+                        <ComboBox x:Name="ThemeComboBox" Margin="0,0,0,20" Padding="8,6"
+                                  SelectedIndex="1">
+                            <ComboBoxItem Content="跟随系统" />
+                            <ComboBoxItem Content="浅色" />
+                            <ComboBoxItem Content="深色" />
+                        </ComboBox>
+
+                        <TextBlock Text="字体大小" FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="A" FontSize="{DynamicResource FontSizeSecondary}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <Slider Grid.Column="1" x:Name="FontSizeSlider"
+                                    Minimum="-2" Maximum="2" Value="2"
+                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="2" Text="A" FontSize="{DynamicResource FontSizePreviewLarge}" FontWeight="Bold"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" />
+                        </Grid>
+                        <TextBlock x:Name="FontSizeLabel" Text="标准"
+                                   FontSize="{DynamicResource FontSizeSecondary}" Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Margin="0,0,0,24" />
+
+                        <TextBlock Text="近期事件显示范围" FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
+                        <ComboBox x:Name="UpcomingDaysCombo" Margin="0,0,0,24" Padding="8,6"
+                                  SelectedIndex="2">
+                            <ComboBoxItem Content="1 天" />
+                            <ComboBoxItem Content="3 天" />
+                            <ComboBoxItem Content="7 天" />
+                        </ComboBox>
+
+                        <TextBlock Text="周起始日" FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,24">
+                            <RadioButton x:Name="WeekStartSunday" Content="周日" Margin="0,0,20,0"
+                                         VerticalAlignment="Center" />
+                            <RadioButton x:Name="WeekStartMonday" Content="周一"
+                                         VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <CheckBox x:Name="ShowWeekNumbersCheckBox"
+                                  Content="显示周数"
+                                  FontSize="{DynamicResource FontSizeBody}"
+                                  Foreground="{DynamicResource TextPrimaryBrush}"
+                                  Margin="0,0,0,20" />
                     </StackPanel>
 
                     <!-- 日历 -->
@@ -893,69 +948,6 @@
                                    FontSize="{DynamicResource FontSizeFootnote}"
                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                    TextWrapping="Wrap" />
-                    </StackPanel>
-
-                    <!-- 显示 -->
-                    <StackPanel x:Name="DisplayPanel" Visibility="Collapsed">
-                        <TextBlock Text="显示"
-                                   FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,18" />
-
-                        <TextBlock Text="颜色主题" FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
-                        <ComboBox x:Name="ThemeComboBox" Margin="0,0,0,20" Padding="8,6"
-                                  SelectedIndex="1">
-                            <ComboBoxItem Content="跟随系统" />
-                            <ComboBoxItem Content="浅色" />
-                            <ComboBoxItem Content="深色" />
-                        </ComboBox>
-
-                        <TextBlock Text="字体大小" FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
-                        <Grid Margin="0,0,0,4">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="A" FontSize="{DynamicResource FontSizeSecondary}"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                       VerticalAlignment="Center" Margin="0,0,8,0" />
-                            <Slider Grid.Column="1" x:Name="FontSizeSlider"
-                                    Minimum="-2" Maximum="2" Value="2"
-                                    TickFrequency="1" IsSnapToTickEnabled="True"
-                                    VerticalAlignment="Center" />
-                            <TextBlock Grid.Column="2" Text="A" FontSize="{DynamicResource FontSizePreviewLarge}" FontWeight="Bold"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                       VerticalAlignment="Center" Margin="8,0,0,0" />
-                        </Grid>
-                        <TextBlock x:Name="FontSizeLabel" Text="标准"
-                                   FontSize="{DynamicResource FontSizeSecondary}" Foreground="{DynamicResource TextSecondaryBrush}"
-                                   Margin="0,0,0,24" />
-
-                        <TextBlock Text="近期事件显示范围" FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
-                        <ComboBox x:Name="UpcomingDaysCombo" Margin="0,0,0,24" Padding="8,6"
-                                  SelectedIndex="2">
-                            <ComboBoxItem Content="1 天" />
-                            <ComboBoxItem Content="3 天" />
-                            <ComboBoxItem Content="7 天" />
-                        </ComboBox>
-
-                        <TextBlock Text="周起始日" FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,24">
-                            <RadioButton x:Name="WeekStartSunday" Content="周日" Margin="0,0,20,0"
-                                         VerticalAlignment="Center" />
-                            <RadioButton x:Name="WeekStartMonday" Content="周一"
-                                         VerticalAlignment="Center" />
-                        </StackPanel>
-
-                        <CheckBox x:Name="ShowWeekNumbersCheckBox"
-                                  Content="显示周数"
-                                  FontSize="{DynamicResource FontSizeBody}"
-                                  Foreground="{DynamicResource TextPrimaryBrush}"
-                                  Margin="0,0,0,20" />
                     </StackPanel>
 
                     <!-- 跑者 -->

@@ -691,12 +691,11 @@ public partial class SettingsWindow : Window
         HolidayPanel.Visibility = selectedIndex == 3 ? Visibility.Visible : Visibility.Collapsed;
         WeatherPanel.Visibility = selectedIndex == 4 ? Visibility.Visible : Visibility.Collapsed;
         HistoryPanel.Visibility = selectedIndex == 5 ? Visibility.Visible : Visibility.Collapsed;
-        DisplayPanel.Visibility = selectedIndex == 6 ? Visibility.Visible : Visibility.Collapsed;
-        RunnerPanel.Visibility = selectedIndex == 7 ? Visibility.Visible : Visibility.Collapsed;
-        AboutPanel.Visibility = selectedIndex == 8 ? Visibility.Visible : Visibility.Collapsed;
+        RunnerPanel.Visibility = selectedIndex == 6 ? Visibility.Visible : Visibility.Collapsed;
+        AboutPanel.Visibility = selectedIndex == 7 ? Visibility.Visible : Visibility.Collapsed;
 
         // 跑者预览动画仅在该分类可见时运行
-        if (selectedIndex == 7)
+        if (selectedIndex == 6)
             StartRunnerPreview();
         else
             StopRunnerPreview();
