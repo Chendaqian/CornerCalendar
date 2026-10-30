@@ -952,10 +952,30 @@
 
                     <!-- 跑者 -->
                     <StackPanel x:Name="RunnerPanel" Visibility="Collapsed">
-                        <TextBlock Text="跑者"
-                                   FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,18" />
-                        <TextBlock Text="点击跑者选中，应用或保存后生效；托盘动画帧速随 CPU 负载动态变化。"
+                        <Grid Margin="0,0,0,18">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="跑者"
+                                       FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       VerticalAlignment="Center" />
+                            <Button Grid.Column="1"
+                                    x:Name="RunnerAnimationToggleButton"
+                                    Content="关闭托盘动画"
+                                    Padding="10,5"
+                                    Background="{DynamicResource HoverBrush}"
+                                    BorderBrush="{DynamicResource SeparatorBrush}"
+                                    BorderThickness="1"
+                                    Foreground="{DynamicResource TextPrimaryBrush}"
+                                    FontSize="{DynamicResource FontSizeFootnote}"
+                                    Cursor="Hand"
+                                    Click="OnToggleRunnerAnimation"
+                                    ToolTip="关闭后保留静态托盘图标，不再播放跑者动画" />
+                        </Grid>
+                        <TextBlock Text="点击跑者选中，应用或保存后生效；可关闭托盘跑者动画，关闭后保留静态托盘图标。"
                                    FontSize="{DynamicResource FontSizeFootnote}"
                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                    TextWrapping="Wrap"

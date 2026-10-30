@@ -39,13 +39,14 @@ public static class WeatherService
         string? cityName,
         CancellationToken cancellationToken = default,
         string? weatherApiUrl = null,
-        int refreshMinutes = DefaultWeatherRefreshMinutes)
+        int refreshMinutes = DefaultWeatherRefreshMinutes,
+        bool forceRefresh = false)
     {
         string baseUrl = NormalizeWeatherApiUrl(weatherApiUrl);
         string cacheKey = BuildCacheKey(cityName, baseUrl);
         TimeSpan cacheLifetime = GetCacheLifetime(refreshMinutes);
         CachedWeather? cached = GetCachedWeather(cacheKey);
-        if (cached?.Weather != null)
+        if (!forceRefresh && cached?.Weather != null)
         {
             if (DateTime.UtcNow - cached.UpdatedAtUtc >= cacheLifetime)
             {

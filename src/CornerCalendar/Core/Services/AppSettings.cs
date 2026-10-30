@@ -71,6 +71,9 @@ public class AppSettings
     // 当前选中的托盘跑者（Resources\Runners 下的文件夹名），缺失时回退默认值
     public string RunnerName { get; set; } = RunnerLibrary.DefaultRunnerName;
 
+    // 是否启用托盘跑者动画；关闭后托盘图标保持静态，并停止 CPU 采样
+    public bool RunnerAnimationEnabled { get; set; } = true;
+
     // 天气位置列表：空字符串表示使用公网 IP 自动定位
     public List<string> WeatherLocations { get; set; } = new() { "北京", "大连", "成都" };
 

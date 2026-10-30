@@ -82,6 +82,15 @@ public static class SenScheduleRules
     public static bool IsInRange(SenScheduleOccurrence occurrence, DateTime date)
         => date.Date >= occurrence.StartDate.Date && date.Date <= occurrence.EndDate.Date;
 
+    /// <summary>
+    /// 森日程角标和阶段圆圈只在森日程工作日显示。
+    /// 周六日调休补班（IsWorkday）计入工作日；周末、法定节假日和“休”日跳过。
+    /// </summary>
+    public static bool IsSenScheduleWorkday(CalendarDay day)
+        => day.IsWorkday
+           || (string.IsNullOrWhiteSpace(day.LegalHoliday)
+               && day.Date.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday));
+
     private static Rule GetRule(int sequence)
         => sequence switch
         {

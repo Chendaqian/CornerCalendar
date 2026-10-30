@@ -1,6 +1,7 @@
 using CornerCalendar.Core.Models;
 using CornerCalendar.Core.Services;
 using CornerCalendar.ViewModels;
+using System.Reflection;
 using Xunit;
 
 namespace CornerCalendar.Tests;
@@ -189,5 +190,86 @@ public class SenScheduleTests
             settings.SenScheduleEnabled = previousEnabled;
             settings.SenSchedules = previousSchedules;
         }
+    }
+
+    [Theory]
+    [InlineData(2026, 10, 12, false, "", true)]              // 普通周一
+    [InlineData(2026, 10, 17, false, "", false)]             // 周六
+    [InlineData(2026, 10, 18, false, "", false)]             // 周日
+    [InlineData(2026, 10, 1, false, "国庆节", false)]         // 法定节假日
+    [InlineData(2026, 10, 10, true, "国庆节补班", true)]      // 周六调休补班
+    [InlineData(2026, 10, 11, true, "", true)]               // 周日调休补班
+    public void 森日程工作日判定包含补班日并跳过休息日(
+        int year,
+        int month,
+        int day,
+        bool isWorkday,
+        string legalHoliday,
+        bool expected)
+    {
+        CalendarDay calendarDay = new(
+            new DateTime(year, month, day),
+            IsCurrentMonth: true,
+            IsToday: false,
+            HasEvents: false,
+            LunarDate: string.Empty,
+            LunarFestival: string.Empty,
+            SolarTerm: string.Empty,
+            LegalHoliday: legalHoliday,
+            IsWorkday: isWorkday,
+            HolidayDayIndex: 0,
+            Events: new List<CalendarEvent>());
+
+        Assert.Equal(expected, SenScheduleRules.IsSenScheduleWorkday(calendarDay));
+    }
+
+    [Fact]
+    public async Task 主窗口关闭再开启森日程后仍能显示()
+    {
+        AppSettings settings = AppSettings.Current;
+        bool previousEnabled = settings.SenScheduleEnabled;
+        List<SenScheduleIteration> previousSchedules = settings.SenSchedules;
+        SenScheduleIteration iteration = SenScheduleParser.Parse("测试迭代", SampleMarkdown);
+        try
+        {
+            settings.SenSchedules = new List<SenScheduleIteration> { iteration };
+            settings.SenScheduleEnabled = true;
+            using CalendarViewModel viewModel = new(
+                new EmptyCalendarService(),
+                new SenScheduleService(settings.SenSchedules));
+            viewModel.NavigateToDate(new DateTime(2026, 8, 25));
+            await viewModel.RefreshDataAsync();
+
+            settings.SenScheduleEnabled = false;
+            await viewModel.RefreshDataAsync();
+            Assert.Empty(viewModel.CalendarDays
+                .SelectMany(day => day.SenEvents ?? Array.Empty<SenScheduleOccurrence>()));
+
+            settings.SenScheduleEnabled = true;
+            await viewModel.RefreshDataAsync();
+            Assert.NotEmpty(viewModel.CalendarDays
+                .Where(day => day.Date.Date == new DateTime(2026, 8, 25))
+                .SelectMany(day => day.SenEvents ?? Array.Empty<SenScheduleOccurrence>()));
+        }
+        finally
+        {
+            settings.SenScheduleEnabled = previousEnabled;
+            settings.SenSchedules = previousSchedules;
+        }
+    }
+
+    [Fact]
+    public async Task 跨天后今日标记移动到新日期()
+    {
+        using CalendarViewModel viewModel = new(new EmptyCalendarService());
+        FieldInfo renderedToday = typeof(CalendarViewModel).GetField(
+            "_renderedToday",
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+        renderedToday.SetValue(viewModel, DateTime.Today.AddDays(-1));
+
+        await viewModel.RefreshForNewDayAsync();
+
+        Assert.Equal(DateTime.Today, viewModel.SelectedDate.Date);
+        Assert.Contains(viewModel.CalendarDays, day => day.Date.Date == DateTime.Today && day.IsToday);
     }
 }

@@ -19,6 +19,7 @@ public class AppSettingsTests
         AppSettings settings = AppSettings.CreateDefaults();
 
         Assert.Equal("rubber-duck-frames", settings.RunnerName);
+        Assert.True(settings.RunnerAnimationEnabled);
         Assert.True(settings.SenScheduleEnabled);   // 属性初始化器为 false，只有内置 default-settings.json 能提供 true
         Assert.Equal(0, settings.HistoryMaxItems);
         Assert.Empty(settings.SenSchedules);        // 迭代不内置，首次启动从 SenOnlineUrl 下载

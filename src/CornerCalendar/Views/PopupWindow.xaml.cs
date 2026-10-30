@@ -7,6 +7,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace CornerCalendar.Views;
 
@@ -23,13 +24,14 @@ public partial class PopupWindow : Window
     private CancellationTokenSource? _weatherLoadCts;
     private int _weatherIndex;
     private bool _pendingForecastOpen;    // 天气加载中用户点击了天气区：数据到达后立即打开七天天气窗口
+    private readonly DispatcherTimer _dayChangeTimer;
 
     public PopupWindow()
     {
         // 加载设置
         _settings = AppSettings.Load();
         _weatherLocations = _settings.WeatherLocations?.Count > 0
-            ? _settings.WeatherLocations
+            ? _settings.WeatherLocations.ToList()
             : new List<string> { "" };
 
         // 初始化 ViewModel
@@ -61,8 +63,18 @@ public partial class PopupWindow : Window
         // 主面板激活后支持使用左右方向键切换月份
         PreviewKeyDown += OnPreviewKeyDown;
 
+        // 面板保持打开时跨过午夜也要移动今日标记
+        _dayChangeTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        _dayChangeTimer.Tick += OnDayChangeTimerTick;
+
         // 构造期即预载天气：配合 App 启动空闲预建窗口，首次点击托盘也能秒开
         StartWeatherLoad();
+    }
+
+    private void OnDayChangeTimerTick(object? sender, EventArgs e)
+    {
+        if (IsVisible)
+            _ = _calendarViewModel.RefreshForNewDayAsync();
     }
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -81,6 +93,7 @@ public partial class PopupWindow : Window
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        _dayChangeTimer.Start();
         ApplySettings();
         UpdateNoEventsVisibility();
         UpdateErrorVisibility();
@@ -96,6 +109,9 @@ public partial class PopupWindow : Window
     /// </remark>
     public void ShowPopup()
     {
+        UpdateSenScheduleButton();
+        _ = _calendarViewModel.RefreshForNewDayAsync();
+        _dayChangeTimer.Start();
         StartWeatherLoad();
         Show();
         WindowPositionHelper.PositionNearTaskbar(this);
@@ -128,7 +144,7 @@ public partial class PopupWindow : Window
         NextWeatherButton.Visibility = canSwitch ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void StartWeatherLoad()
+    private void StartWeatherLoad(bool forceRefresh = false)
     {
         if (_weatherLoadCts != null)
         {
@@ -144,10 +160,10 @@ public partial class PopupWindow : Window
         }
 
         _weatherLoadCts = new CancellationTokenSource();
-        _ = LoadWeatherAsync(_weatherIndex, _weatherLoadCts.Token);
+        _ = LoadWeatherAsync(_weatherIndex, _weatherLoadCts.Token, forceRefresh);
     }
 
-    private async Task LoadWeatherAsync(int index, CancellationToken cancellationToken)
+    private async Task LoadWeatherAsync(int index, CancellationToken cancellationToken, bool forceRefresh)
     {
         string location = _weatherLocations[index];
         WeatherIconHost.Content = null;
@@ -161,7 +177,8 @@ public partial class PopupWindow : Window
                 location,
                 cancellationToken,
                 _settings.WeatherApiUrl,
-                _settings.WeatherRefreshMinutes);
+                _settings.WeatherRefreshMinutes,
+                forceRefresh);
             if (cancellationToken.IsCancellationRequested || index != _weatherIndex)
                 return;
 
@@ -238,6 +255,12 @@ public partial class PopupWindow : Window
     {
         e.Handled = true;
         ChangeWeather(1);
+    }
+
+    private void OnRefreshWeatherClick(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        StartWeatherLoad(forceRefresh: true);
     }
 
     private void OnWeatherSectionPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -321,8 +344,8 @@ public partial class PopupWindow : Window
     private void UpdateSenScheduleButton()
     {
         bool enabled = _settings.SenScheduleEnabled;
-        // 设置里关闭森日程总开关时，主窗口不展示森按钮
-        SenScheduleButton.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
+        // 开关关闭时也保留“森”按钮，便于直接从主窗口重新开启。
+        SenScheduleButton.Opacity = enabled ? 1.0 : 0.55;
         SenScheduleButton.Background = enabled
             ? (Brush)FindResource("SelectedBrush")
             : Brushes.Transparent;
@@ -336,6 +359,34 @@ public partial class PopupWindow : Window
     {
         ApplySettings();
         _ = _calendarViewModel.ReloadSettingsAsync();
+    }
+
+    /// <summary>
+    /// 应用设置页保存后的天气位置与接口配置，并立即刷新当前天气。
+    /// </summary>
+    public void RefreshWeatherSettings()
+    {
+        string? currentLocation = _weatherIndex >= 0 && _weatherIndex < _weatherLocations.Count
+            ? _weatherLocations[_weatherIndex]
+            : null;
+
+        List<string> locations = (_settings.WeatherLocations ?? new List<string>()).ToList();
+        if (locations.Count == 0)
+            locations.Add(string.Empty);
+
+        _weatherLocations.Clear();
+        _weatherLocations.AddRange(locations);
+
+        int currentIndex = currentLocation is null
+            ? -1
+            : _weatherLocations.FindIndex(location =>
+                string.Equals(location, currentLocation, StringComparison.OrdinalIgnoreCase));
+        _weatherIndex = currentIndex >= 0
+            ? currentIndex
+            : Math.Clamp(_weatherIndex, 0, _weatherLocations.Count - 1);
+
+        UpdateWeatherPage();
+        StartWeatherLoad();
     }
 
     /// <summary>
@@ -383,6 +434,7 @@ public partial class PopupWindow : Window
         if (!IsVisible)
             return;
 
+        _dayChangeTimer.Stop();
         CloseWeatherForecastWindow();
         CloseDetailWindow();
         Hide();
@@ -500,6 +552,7 @@ public partial class PopupWindow : Window
                 _weatherLoadCts = null;
             }
         }
+        _dayChangeTimer.Stop();
         _calendarViewModel.Dispose(); // 释放数据源服务持有的资源（ICS HttpClient 等）
         base.OnClosed(e);
     }

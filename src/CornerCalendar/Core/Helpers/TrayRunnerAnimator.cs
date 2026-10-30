@@ -29,6 +29,7 @@ internal sealed class TrayRunnerAnimator : IDisposable
     private List<Icon> _icons = new();
     private int _currentFrame;
     private bool _isDarkTheme;
+    private bool _animationEnabled = true;
     private bool _disposed;
 
     internal TrayRunnerAnimator(TaskbarIcon trayIcon)
@@ -43,15 +44,60 @@ internal sealed class TrayRunnerAnimator : IDisposable
     }
 
     /// <summary>
-    /// 启动动画：枚举跑者、加载指定跑者（缺失时回退默认），启动换帧与后台采样定时器。
+    /// 启动托盘图标：枚举跑者并加载指定跑者（缺失时回退默认）。
+    /// 动画开启时启动换帧与后台采样定时器；关闭时只显示静态首帧。
     /// </summary>
-    internal void Start(string? runnerName)
+    internal void Start(string? runnerName, bool animationEnabled)
     {
         _runners = RunnerLibrary.EnumerateRunners();
         _isDarkTheme = ThemeHelper.IsSystemDarkMode();
+        _animationEnabled = animationEnabled;
         ApplyRunner(runnerName);
-        _frameTimer.Start();
-        _sampleTimer = new System.Threading.Timer(OnSampleTick, null, SamplePeriod, SamplePeriod);
+        if (_animationEnabled)
+            StartRuntimeTimers();
+        else
+            StopRuntimeTimers();
+    }
+
+    /// <summary>
+    /// 开启或关闭托盘跑者动画；关闭后保留静态托盘图标并停止 CPU 采样。
+    /// </summary>
+    internal void SetEnabled(bool enabled)
+    {
+        if (_disposed || _animationEnabled == enabled)
+            return;
+
+        _animationEnabled = enabled;
+        if (enabled)
+            StartRuntimeTimers();
+        else
+            StopRuntimeTimers();
+    }
+
+    private void StartRuntimeTimers()
+    {
+        if (_icons.Count == 0)
+            RebuildIcons();
+
+        if (_icons.Count > 0)
+        {
+            _trayIcon.Icon = _icons[0];
+            _currentFrame = _icons.Count > 1 ? 1 % _icons.Count : 0;
+        }
+
+        if (!_frameTimer.IsEnabled)
+            _frameTimer.Start();
+        _sampleTimer ??= new System.Threading.Timer(OnSampleTick, null, SamplePeriod, SamplePeriod);
+    }
+
+    private void StopRuntimeTimers()
+    {
+        _frameTimer.Stop();
+        _sampleTimer?.Dispose();
+        _sampleTimer = null;
+        if (_icons.Count > 0)
+            _trayIcon.Icon = _icons[0];
+        _trayIcon.ToolTipText = "CornerCalendar";
     }
 
     /// <summary>
@@ -59,7 +105,7 @@ internal sealed class TrayRunnerAnimator : IDisposable
     /// </summary>
     internal void SetRunner(string? runnerName)
     {
-        if (ApplyRunner(runnerName) && !_frameTimer.IsEnabled)
+        if (ApplyRunner(runnerName) && _animationEnabled && !_frameTimer.IsEnabled)
             _frameTimer.Start();
     }
 
@@ -98,7 +144,7 @@ internal sealed class TrayRunnerAnimator : IDisposable
 
     private void OnFrameTick(object? sender, EventArgs e)
     {
-        if (_icons.Count == 0)
+        if (!_animationEnabled || _icons.Count == 0)
             return;
 
         if (_currentFrame >= _icons.Count)
@@ -112,7 +158,7 @@ internal sealed class TrayRunnerAnimator : IDisposable
     /// </summary>
     private void OnSampleTick(object? state)
     {
-        if (_disposed)
+        if (_disposed || !_animationEnabled)
             return;
 
         float load = _cpuMonitor.SampleLoad();
@@ -122,7 +168,7 @@ internal sealed class TrayRunnerAnimator : IDisposable
         {
             _dispatcher.BeginInvoke(new Action(() =>
             {
-                if (_disposed)
+                if (_disposed || !_animationEnabled)
                     return;
 
                 // 悬停提示与 RunCat365 一致：每秒刷新为 CPU 占用

@@ -24,3 +24,6 @@ Thumbs.db
 Desktop.ini
 .DS_Store
 /src/CornerCalendar/build-verify
+
+## Local agent config
+.claude/

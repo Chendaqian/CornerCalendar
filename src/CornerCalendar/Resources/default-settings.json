@@ -14,6 +14,7 @@
   "WeekStartDay": "Monday",
   "ShowWeekNumbers": true,
   "RunnerName": "rubber-duck-frames",
+  "RunnerAnimationEnabled": true,
   "WeatherLocations": [
     "\u5317\u4EAC",
     "\u5927\u8FDE",

@@ -234,6 +234,8 @@ public partial class SettingsWindow : Window
 
         // 托盘跑者选中回显（缺失时回退默认）
         SelectRunnerCardByName(_settings.RunnerName);
+        _runnerAnimationEnabled = _settings.RunnerAnimationEnabled;
+        UpdateRunnerAnimationButton();
 
         // 字体大小滑块事件
         FontSizeSlider.ValueChanged += (_, _) => UpdateFontSizeLabel();
@@ -730,6 +732,7 @@ public partial class SettingsWindow : Window
     private readonly List<RunnerCardItem> _runnerCards = new(40);
     private DispatcherTimer? _runnerPreviewTimer;
     private RunnerCardItem? _selectedRunnerCard;
+    private bool _runnerAnimationEnabled = true;
 
     /// <summary>
     /// 构建跑者预览画廊：每个跑者一张卡片（动画预览 + 显示名 + 选中态边框）。
@@ -828,6 +831,23 @@ public partial class SettingsWindow : Window
             ?? _runnerCards.FirstOrDefault();
         if (card != null)
             SelectRunnerCard(card);
+    }
+
+    private void OnToggleRunnerAnimation(object sender, RoutedEventArgs e)
+    {
+        _runnerAnimationEnabled = !_runnerAnimationEnabled;
+        _settings.RunnerAnimationEnabled = _runnerAnimationEnabled;
+        _settings.Save();
+        App.ApplyRunnerSettings();
+        UpdateRunnerAnimationButton();
+    }
+
+    private void UpdateRunnerAnimationButton()
+    {
+        RunnerAnimationToggleButton.Content = _runnerAnimationEnabled ? "关闭托盘动画" : "开启托盘动画";
+        RunnerAnimationToggleButton.ToolTip = _runnerAnimationEnabled
+            ? "关闭后保留静态托盘图标，不再播放跑者动画"
+            : "开启托盘跑者动画，帧速随 CPU 负载变化";
     }
 
     private void StartRunnerPreview()
@@ -1458,6 +1478,7 @@ public partial class SettingsWindow : Window
         // 托盘跑者
         if (_selectedRunnerCard != null)
             _settings.RunnerName = _selectedRunnerCard.Runner.Name;
+        _settings.RunnerAnimationEnabled = _runnerAnimationEnabled;
 
         // 持久化
         _settings.Save();
@@ -1524,6 +1545,8 @@ public partial class SettingsWindow : Window
         WeekStartMonday.IsChecked = defaults.WeekStartDay == WeekStartDay.Monday;
         ShowWeekNumbersCheckBox.IsChecked = defaults.ShowWeekNumbers;
         SelectRunnerCardByName(defaults.RunnerName);
+        _runnerAnimationEnabled = defaults.RunnerAnimationEnabled;
+        UpdateRunnerAnimationButton();
     }
 
     private void ApplyAutoStartup(bool enable)

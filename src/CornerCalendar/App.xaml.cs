@@ -76,7 +76,7 @@ public partial class App : Application
         try
         {
             _runnerAnimator = new TrayRunnerAnimator(_trayIcon);
-            _runnerAnimator.Start(settings.RunnerName);
+            _runnerAnimator.Start(settings.RunnerName, settings.RunnerAnimationEnabled);
         }
         catch (Exception ex)
         {
@@ -398,14 +398,21 @@ public partial class App : Application
     /// </summary>
     public static void ApplyRunnerSettings()
     {
-        if (Current is App app)
-            app._runnerAnimator?.SetRunner(AppSettings.Current.RunnerName);
+        if (Current is not App app)
+            return;
+
+        AppSettings settings = AppSettings.Current;
+        app._runnerAnimator?.SetRunner(settings.RunnerName);
+        app._runnerAnimator?.SetEnabled(settings.RunnerAnimationEnabled);
     }
 
     public static void RefreshWeatherSettings()
     {
-        if (Current is App app)
-            app.RestartWeatherBackgroundRefresh();
+        if (Current is not App app)
+            return;
+
+        app._popup?.RefreshWeatherSettings();
+        app.RestartWeatherBackgroundRefresh();
     }
 
     // 菜单项矢量图标（24x24 视口的 Path 数据：齿轮 / 电源）

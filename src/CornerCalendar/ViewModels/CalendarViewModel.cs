@@ -27,6 +27,10 @@ public class CalendarViewModel : INotifyPropertyChanged, IDisposable
     private IReadOnlyDictionary<DateTime, ChinaCalendarDayInfo> _chinaCalendarInfo =
         new Dictionary<DateTime, ChinaCalendarDayInfo>();
 
+    private DateTime _renderedToday = DateTime.Today;
+    private int _refreshVersion;
+    private int _upcomingEventsVersion;
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     /// <summary>
@@ -321,6 +325,7 @@ public class CalendarViewModel : INotifyPropertyChanged, IDisposable
     /// </summary>
     private async Task UpdateUpcomingEventsFromDateAsync(DateTime fromDate)
     {
+        int version = ++_upcomingEventsVersion;
         UpcomingEvents.Clear();
 
         DateTime endDate = fromDate.Date.AddDays(UpcomingDays);
@@ -329,19 +334,25 @@ public class CalendarViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             events = await GetCalendarEventsAsync(fromDate.Date, endDate);
+            if (version != _upcomingEventsVersion)
+                return;
+
             ErrorText = null;
         }
         catch
         {
-            ErrorText = LoadErrorMessage;
+            if (version == _upcomingEventsVersion)
+                ErrorText = LoadErrorMessage;
             return;
         }
 
         // 按时间排序，取前 100 条
         IEnumerable<CalendarEvent> sorted = events
             .OrderBy(e => e.StartTime)
-            .Take(100);
+            .Take(100)
+            .ToList();
 
+        UpcomingEvents.Clear();
         foreach (CalendarEvent? evt in sorted)
         {
             UpcomingEvents.Add(evt);
@@ -392,12 +403,40 @@ public class CalendarViewModel : INotifyPropertyChanged, IDisposable
     }
 
     /// <summary>
+    /// 跨天后刷新今日标记；若当前选中日期仍是旧的“今天”，同步切到新的一天。
+    /// </summary>
+    public async Task RefreshForNewDayAsync()
+    {
+        DateTime today = DateTime.Today;
+        if (today == _renderedToday)
+            return;
+
+        if (SelectedDate.Date == _renderedToday)
+        {
+            Year = today.Year;
+            Month = today.Month;
+            SelectedDate = today;
+            UpdateMonthDisplay();
+        }
+
+        await RefreshDataAsync();
+    }
+
+    /// <summary>
     /// 刷新所有数据：日历网格立即渲染，事件异步加载
     /// </summary>
     public async Task RefreshDataAsync()
     {
+        // 并发刷新时只允许最后一次结果落地，避免较慢的旧请求覆盖新设置或新日期。
+        int refreshVersion = ++_refreshVersion;
+        DateTime today = DateTime.Today;
+        _renderedToday = today;
+
         // 第一阶段：立即生成日历网格（不依赖事件数据，纯日期计算）
-        GenerateCalendarGrid(new List<CalendarEvent>(), Array.Empty<SenScheduleOccurrence>());
+        GenerateCalendarGrid(
+            new List<CalendarEvent>(),
+            Array.Empty<SenScheduleOccurrence>(),
+            today);
 
         // 第二阶段：异步加载事件数据，再更新网格和事件列表
         IsLoading = true;
@@ -410,48 +449,62 @@ public class CalendarViewModel : INotifyPropertyChanged, IDisposable
             try
             {
                 events = await GetCalendarEventsAsync(rangeStart, rangeEnd);
+                if (refreshVersion != _refreshVersion)
+                    return;
+
                 ErrorText = null;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"CornerCalendar: RefreshDataAsync failed: {ex.Message}");
+                if (refreshVersion != _refreshVersion)
+                    return;
+
                 events = new List<CalendarEvent>();
                 ErrorText = LoadErrorMessage;
             }
 
+            IReadOnlyDictionary<DateTime, ChinaCalendarDayInfo> chinaCalendarInfo;
             if (_calendarService is IChinaCalendarDataProvider chinaCalendarProvider)
             {
                 try
                 {
-                    _chinaCalendarInfo = await chinaCalendarProvider.GetDayInfoAsync(rangeStart, rangeEnd);
+                    chinaCalendarInfo = await chinaCalendarProvider.GetDayInfoAsync(rangeStart, rangeEnd);
                 }
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"CornerCalendar: ChinaCalendar info refresh failed: {ex.Message}");
-                    _chinaCalendarInfo = new Dictionary<DateTime, ChinaCalendarDayInfo>();
+                    chinaCalendarInfo = new Dictionary<DateTime, ChinaCalendarDayInfo>();
                 }
             }
             else
             {
-                _chinaCalendarInfo = new Dictionary<DateTime, ChinaCalendarDayInfo>();
+                chinaCalendarInfo = new Dictionary<DateTime, ChinaCalendarDayInfo>();
             }
 
+            if (refreshVersion != _refreshVersion)
+                return;
+
             _chinaCalendarInfo = CalendarEventFilter.FilterDayInfo(
-                _chinaCalendarInfo,
+                chinaCalendarInfo,
                 AppSettings.Current.HiddenHolidayNames);
 
             List<SenScheduleOccurrence> senOccurrences = GetSenOccurrences(rangeStart, rangeEnd);
             SenScheduleService.ApplyChinaWorkdays(senOccurrences, _chinaCalendarInfo);
 
             // 用事件数据重新生成网格（更新事件点标记）
-            GenerateCalendarGrid(events, senOccurrences);
+            GenerateCalendarGrid(events, senOccurrences, today);
+
+            if (refreshVersion != _refreshVersion)
+                return;
 
             // 生成近期事件列表（await 统一的 Task 方法，替代原 async void 实现）
             await UpdateUpcomingEventsFromDateAsync(SelectedDate);
         }
         finally
         {
-            IsLoading = false;
+            if (refreshVersion == _refreshVersion)
+                IsLoading = false;
         }
     }
 
@@ -529,7 +582,8 @@ public class CalendarViewModel : INotifyPropertyChanged, IDisposable
 
     private void GenerateCalendarGrid(
         List<CalendarEvent> events,
-        IReadOnlyList<SenScheduleOccurrence> senOccurrences)
+        IReadOnlyList<SenScheduleOccurrence> senOccurrences,
+        DateTime today)
     {
         CalendarDays.Clear();
 
@@ -548,7 +602,7 @@ public class CalendarViewModel : INotifyPropertyChanged, IDisposable
         {
             DateTime date = gridStartDate.AddDays(i);
             bool isCurrentMonth = date.Month == Month && date.Year == Year;
-            bool isToday = date.Date == DateTime.Today;
+            bool isToday = date.Date == today;
 
             // 查找当天的事件
             List<CalendarEvent> dayEvents = events.Where(e =>

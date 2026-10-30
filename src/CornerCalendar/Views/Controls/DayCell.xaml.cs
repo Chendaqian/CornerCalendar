@@ -219,22 +219,27 @@ public partial class DayCell : UserControl
         if (primary is null)
             return;
 
-        (string? badge, _, string? badgeColorKey) = SenScheduleRules.GetBadge(primary, day.Date);
-        if (!string.IsNullOrWhiteSpace(badge) && !string.IsNullOrWhiteSpace(badgeColorKey))
+        // 角标和阶段圆圈共用森日程工作日判定：周末、法定节假日和“休”日隐藏，调休补班日显示。
+        bool showSenVisuals = SenScheduleRules.IsSenScheduleWorkday(day);
+        if (showSenVisuals)
         {
-            cell.SenBadgeText.Text = badge;
-            cell.SenBadgeText.SetResourceReference(
-                TextBlock.ForegroundProperty,
-                badgeColorKey);
-            cell.SenBadgeBackground.SetResourceReference(
-                Border.BackgroundProperty,
-                badgeColorKey);
-            cell.SenBadge.Visibility = Visibility.Visible;
+            (string? badge, _, string? badgeColorKey) = SenScheduleRules.GetBadge(primary, day.Date);
+            if (!string.IsNullOrWhiteSpace(badge) && !string.IsNullOrWhiteSpace(badgeColorKey))
+            {
+                cell.SenBadgeText.Text = badge;
+                cell.SenBadgeText.SetResourceReference(
+                    TextBlock.ForegroundProperty,
+                    badgeColorKey);
+                cell.SenBadgeBackground.SetResourceReference(
+                    Border.BackgroundProperty,
+                    badgeColorKey);
+                cell.SenBadge.Visibility = Visibility.Visible;
+            }
         }
 
-        // 阶段圆圈表示森日程活动范围，即使当天是周末或调休上班日也应显示；
-        // 可在设置的森日程分类中关闭。选中和今日状态仍保持现有蓝色/填充圆圈。
-        if (!day.IsToday
+        // 阶段圆圈与角标同日显隐；另有独立开关控制圆圈，今日/选中态仍优先。
+        if (showSenVisuals
+            && !day.IsToday
             && !cell.IsSelected
             && AppSettings.Current.ShowSenPhaseCircles
             && !string.IsNullOrWhiteSpace(primary.CircleColorKey))
