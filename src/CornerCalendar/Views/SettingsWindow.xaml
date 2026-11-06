@@ -196,9 +196,11 @@
                 </Grid.ColumnDefinitions>
 
                 <TextBlock Grid.Column="0" Text="⚙ 设置"
+                           x:Name="SettingsTitleText"
                            FontSize="{DynamicResource FontSizeWindowTitle}" FontWeight="SemiBold"
                            Foreground="{DynamicResource TextPrimaryBrush}"
-                           VerticalAlignment="Center" />
+                           VerticalAlignment="Center"
+                           MouseLeftButtonDown="OnSettingsTitleMouseLeftButtonDown" />
 
                 <Button Grid.Column="1" x:Name="CloseButton"
                         Width="32" Height="32"
@@ -271,7 +273,7 @@
                     </ListBox.Resources>
                     <ListBoxItem Content="常规" />
                     <ListBoxItem Content="日历" />
-                    <ListBoxItem Content="森日程" />
+                    <ListBoxItem x:Name="SenScheduleCategoryItem" Content="森日程" Visibility="Collapsed" />
                     <ListBoxItem Content="节日" />
                     <ListBoxItem Content="天气" />
                     <ListBoxItem Content="今昔" />
@@ -527,154 +529,167 @@
 
                     <!-- 森日程 -->
                     <StackPanel x:Name="SenPanel" Visibility="Collapsed">
-                        <Grid Margin="0,0,0,14">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0"
-                                       Text="森日程"
-                                       FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                       VerticalAlignment="Center" />
-                            <CheckBox Grid.Column="1"
-                                      x:Name="SenScheduleEnabledCheckBox"
-                                      VerticalAlignment="Center"
-                                      ToolTip="在主日历中显示森日程" />
-                        </Grid>
-
-                        <CheckBox x:Name="SenPhaseCircleCheckBox"
-                                  Content="在主窗口日期上显示森日程阶段圆圈"
+                        <TextBlock Text="森日程"
+                                   FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <TextBlock Text="开启后，主窗口会显示“森”按钮，并在日历中展示森日程信息；关闭后下方设置不可用。"
+                                   FontSize="{DynamicResource FontSizeFootnote}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,4,0,10" />
+                        <CheckBox x:Name="SenScheduleEnabledCheckBox"
+                                  Content="启用森日程"
                                   FontSize="{DynamicResource FontSizeBody}"
                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                  Margin="0,0,0,14" />
+                                  Margin="0,0,0,18" />
 
-                        <TextBlock Text="在线迭代"
-                                   FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                   Margin="0,4,0,6" />
-                        <TextBlock Text="填写在线数据根地址，应用拉取其下 manifest.yaml 清单与各迭代 Markdown 数据；启动时自动拉取，同名迭代以在线数据覆盖本地（保留眼睛开关），清空地址则停用。"
-                                   FontSize="{DynamicResource FontSizeFootnote}"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                   TextWrapping="Wrap"
-                                   Margin="0,0,0,8" />
-                        <TextBox x:Name="SenOnlineUrlTextBox"
-                                 Padding="8,6"
-                                 Margin="0,0,0,8" />
-                        <Button x:Name="SenOnlineRefreshButton"
-                                Content="刷新在线迭代"
-                                HorizontalAlignment="Left"
-                                Padding="12,6"
-                                Background="{DynamicResource TodayAccentBrush}"
-                                Foreground="White"
-                                BorderThickness="0"
-                                FontWeight="SemiBold"
-                                Cursor="Hand"
-                                Click="OnRefreshSenOnlineClick" />
-                        <TextBlock x:Name="SenOnlineStatusText"
-                                   FontSize="{DynamicResource FontSizeFootnote}"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                   TextWrapping="Wrap"
-                                   Margin="0,8,0,14"
-                                   Visibility="Collapsed" />
+                        <StackPanel x:Name="SenSettingsControls"
+                                    IsEnabled="{Binding IsChecked, ElementName=SenScheduleEnabledCheckBox}">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Opacity" Value="1" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsChecked, ElementName=SenScheduleEnabledCheckBox}"
+                                                     Value="False">
+                                            <Setter Property="Opacity" Value="0.45" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
 
-                        <TextBlock Text="已导入迭代"
-                                   FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                   Margin="0,4,0,8" />
-                        <ItemsControl x:Name="SenIterationList">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border BorderThickness="1"
-                                            BorderBrush="{DynamicResource SeparatorBrush}"
-                                            CornerRadius="6"
-                                            Padding="8,7"
-                                            Margin="0,0,0,6"
-                                            Cursor="Hand"
-                                            AllowDrop="True"
-                                            DragOver="OnSenScheduleDragOver"
-                                            Drop="OnSenScheduleDrop"
-                                            MouseLeftButtonUp="OnPreviewSenSchedule">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <Border Grid.Column="0"
-                                                    Width="24"
-                                                    Height="32"
-                                                    Margin="0,0,6,0"
-                                                    Background="Transparent"
-                                                    Cursor="SizeAll"
-                                                    MouseLeftButtonDown="OnSenDragHandleMouseLeftButtonDown"
-                                                    MouseMove="OnSenDragHandleMouseMove"
-                                                    ToolTip="拖动调整顺序">
-                                                <TextBlock Text="⋮⋮"
-                                                           FontSize="16"
-                                                           Foreground="{DynamicResource TextSecondaryBrush}"
-                                                           HorizontalAlignment="Center"
-                                                           VerticalAlignment="Center" />
-                                            </Border>
-                                            <StackPanel Grid.Column="1">
-                                                <TextBlock Text="{Binding Name}"
-                                                           FontSize="{DynamicResource FontSizeSecondary}"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                <TextBlock FontSize="{DynamicResource FontSizeFootnote}"
-                                                           Foreground="{DynamicResource TextSecondaryBrush}">
-                                                    <Run Text="{Binding StartDate, Mode=OneWay, StringFormat=yyyy/M/d}" />
-                                                    <Run Text=" - " />
-                                                    <Run Text="{Binding EndDate, Mode=OneWay, StringFormat=yyyy/M/d}" />
-                                                </TextBlock>
-                                            </StackPanel>
-                                            <Button Grid.Column="2"
-                                                    Width="28"
-                                                    Height="28"
-                                                    Padding="0"
-                                                    Background="Transparent"
-                                                    BorderThickness="0"
-                                                    Cursor="Hand"
-                                                    Click="OnToggleSenScheduleVisibility"
-                                                    Tag="{Binding Id}"
-                                                    ToolTip="显示或隐藏此迭代">
-                                                <Button.Style>
-                                                    <Style TargetType="Button">
-                                                        <Setter Property="Opacity" Value="0.45" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsEnabled}" Value="True">
-                                                                <Setter Property="Opacity" Value="1" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Button.Style>
-                                                <Path Data="M12,4.5C7,4.5 2.73,7.61 1,12c1.73,4.39 6,7.5 11,7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5M12,17c-2.76,0-5-2.24-5-5s2.24-5 5-5 5,2.24 5,5-2.24,5-5,5m0-8c-1.66,0-3,1.34-3,3s1.34,3 3,3 3-1.34 3-3-1.34-3-3-3Z"
-                                                      Fill="{DynamicResource TextSecondaryBrush}"
-                                                      Stretch="Uniform"
-                                                      Width="16"
-                                                      Height="16" />
-                                            </Button>
-                                            <Button Grid.Column="3"
-                                                    Content="✕"
-                                                    Width="24" Height="24"
-                                                    Padding="0"
-                                                    Background="Transparent"
-                                                    BorderThickness="0"
-                                                    Cursor="Hand"
-                                                    Click="OnRemoveSenSchedule"
-                                                    Tag="{Binding Id}"
-                                                    ToolTip="删除此迭代" />
-                                        </Grid>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <TextBlock x:Name="SenIterationEmptyText"
-                                   Text="尚未导入迭代"
-                                   FontSize="{DynamicResource FontSizeFootnote}"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                   Margin="0,4,0,0" />
+                            <CheckBox x:Name="SenPhaseCircleCheckBox"
+                                      Content="在主窗口日期上显示森日程阶段圆圈"
+                                      FontSize="{DynamicResource FontSizeBody}"
+                                      Foreground="{DynamicResource TextPrimaryBrush}"
+                                      Margin="0,0,0,14" />
+
+                            <TextBlock Text="在线迭代"
+                                       FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       Margin="0,4,0,6" />
+                            <TextBlock Text="填写在线数据根地址，应用拉取其下 manifest.yaml 清单与各迭代 Markdown 数据；启动时自动拉取，同名迭代以在线数据覆盖本地（保留眼睛开关），清空地址则停用。"
+                                       FontSize="{DynamicResource FontSizeFootnote}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,0,0,8" />
+                            <TextBox x:Name="SenOnlineUrlTextBox"
+                                     Padding="8,6"
+                                     Margin="0,0,0,8" />
+                            <Button x:Name="SenOnlineRefreshButton"
+                                    Content="刷新在线迭代"
+                                    HorizontalAlignment="Left"
+                                    Padding="12,6"
+                                    Background="{DynamicResource TodayAccentBrush}"
+                                    Foreground="White"
+                                    BorderThickness="0"
+                                    FontWeight="SemiBold"
+                                    Cursor="Hand"
+                                    Click="OnRefreshSenOnlineClick" />
+                            <TextBlock x:Name="SenOnlineStatusText"
+                                       FontSize="{DynamicResource FontSizeFootnote}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,8,0,14"
+                                       Visibility="Collapsed" />
+
+                            <TextBlock Text="已导入迭代"
+                                       FontSize="{DynamicResource FontSizeItemTitle}" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       Margin="0,4,0,8" />
+                            <ItemsControl x:Name="SenIterationList">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderThickness="1"
+                                                BorderBrush="{DynamicResource SeparatorBrush}"
+                                                CornerRadius="6"
+                                                Padding="8,7"
+                                                Margin="0,0,0,6"
+                                                Cursor="Hand"
+                                                AllowDrop="True"
+                                                DragOver="OnSenScheduleDragOver"
+                                                Drop="OnSenScheduleDrop"
+                                                MouseLeftButtonUp="OnPreviewSenSchedule">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Grid.Column="0"
+                                                        Width="24"
+                                                        Height="32"
+                                                        Margin="0,0,6,0"
+                                                        Background="Transparent"
+                                                        Cursor="SizeAll"
+                                                        MouseLeftButtonDown="OnSenDragHandleMouseLeftButtonDown"
+                                                        MouseMove="OnSenDragHandleMouseMove"
+                                                        ToolTip="拖动调整顺序">
+                                                    <TextBlock Text="⋮⋮"
+                                                               FontSize="16"
+                                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center" />
+                                                </Border>
+                                                <StackPanel Grid.Column="1">
+                                                    <TextBlock Text="{Binding Name}"
+                                                               FontSize="{DynamicResource FontSizeSecondary}"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                    <TextBlock FontSize="{DynamicResource FontSizeFootnote}"
+                                                               Foreground="{DynamicResource TextSecondaryBrush}">
+                                                        <Run Text="{Binding StartDate, Mode=OneWay, StringFormat=yyyy/M/d}" />
+                                                        <Run Text=" - " />
+                                                        <Run Text="{Binding EndDate, Mode=OneWay, StringFormat=yyyy/M/d}" />
+                                                    </TextBlock>
+                                                </StackPanel>
+                                                <Button Grid.Column="2"
+                                                        Width="28"
+                                                        Height="28"
+                                                        Padding="0"
+                                                        Background="Transparent"
+                                                        BorderThickness="0"
+                                                        Cursor="Hand"
+                                                        Click="OnToggleSenScheduleVisibility"
+                                                        Tag="{Binding Id}"
+                                                        ToolTip="显示或隐藏此迭代">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button">
+                                                            <Setter Property="Opacity" Value="0.45" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsEnabled}" Value="True">
+                                                                    <Setter Property="Opacity" Value="1" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                    <Path Data="M12,4.5C7,4.5 2.73,7.61 1,12c1.73,4.39 6,7.5 11,7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5M12,17c-2.76,0-5-2.24-5-5s2.24-5 5-5 5,2.24 5,5-2.24,5-5,5m0-8c-1.66,0-3,1.34-3,3s1.34,3 3,3 3-1.34 3-3-1.34-3-3-3Z"
+                                                          Fill="{DynamicResource TextSecondaryBrush}"
+                                                          Stretch="Uniform"
+                                                          Width="16"
+                                                          Height="16" />
+                                                </Button>
+                                                <Button Grid.Column="3"
+                                                        Content="✕"
+                                                        Width="24" Height="24"
+                                                        Padding="0"
+                                                        Background="Transparent"
+                                                        BorderThickness="0"
+                                                        Cursor="Hand"
+                                                        Click="OnRemoveSenSchedule"
+                                                        Tag="{Binding Id}"
+                                                        ToolTip="删除此迭代" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock x:Name="SenIterationEmptyText"
+                                       Text="尚未导入迭代"
+                                       FontSize="{DynamicResource FontSizeFootnote}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       Margin="0,4,0,0" />
+                        </StackPanel>
                     </StackPanel>
 
                     <!-- 节日 -->
@@ -963,8 +978,8 @@
                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                        VerticalAlignment="Center" />
                             <Button Grid.Column="1"
-                                    x:Name="RunnerAnimationToggleButton"
-                                    Content="关闭托盘动画"
+                                    x:Name="RunnerVisibilityToggleButton"
+                                    Content="隐藏托盘跑者"
                                     Padding="10,5"
                                     Background="{DynamicResource HoverBrush}"
                                     BorderBrush="{DynamicResource SeparatorBrush}"
@@ -972,10 +987,10 @@
                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                     FontSize="{DynamicResource FontSizeFootnote}"
                                     Cursor="Hand"
-                                    Click="OnToggleRunnerAnimation"
-                                    ToolTip="关闭后保留静态托盘图标，不再播放跑者动画" />
+                                    Click="OnToggleRunnerVisibility"
+                                    ToolTip="关闭后托盘改为显示默认图标" />
                         </Grid>
-                        <TextBlock Text="点击跑者选中，应用或保存后生效；可关闭托盘跑者动画，关闭后保留静态托盘图标。"
+                        <TextBlock Text="点击跑者选中，应用或保存后生效；关闭托盘跑者后将显示默认托盘图标。"
                                    FontSize="{DynamicResource FontSizeFootnote}"
                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                    TextWrapping="Wrap"

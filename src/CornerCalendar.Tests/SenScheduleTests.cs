@@ -1,3 +1,4 @@
+using CornerCalendar.Core.Helpers;
 using CornerCalendar.Core.Models;
 using CornerCalendar.Core.Services;
 using CornerCalendar.ViewModels;
@@ -165,6 +166,7 @@ public class SenScheduleTests
         bool previousEnabled = settings.SenScheduleEnabled;
         List<SenScheduleIteration> previousSchedules = settings.SenSchedules;
         SenScheduleIteration iteration = SenScheduleParser.Parse("测试迭代", SampleMarkdown);
+        SenScheduleFeatureGate.Unlock();
         try
         {
             settings.SenSchedules = new List<SenScheduleIteration> { iteration };
@@ -230,6 +232,7 @@ public class SenScheduleTests
         bool previousEnabled = settings.SenScheduleEnabled;
         List<SenScheduleIteration> previousSchedules = settings.SenSchedules;
         SenScheduleIteration iteration = SenScheduleParser.Parse("测试迭代", SampleMarkdown);
+        SenScheduleFeatureGate.Unlock();
         try
         {
             settings.SenSchedules = new List<SenScheduleIteration> { iteration };
@@ -255,6 +258,35 @@ public class SenScheduleTests
         {
             settings.SenScheduleEnabled = previousEnabled;
             settings.SenSchedules = previousSchedules;
+        }
+    }
+
+    [Fact]
+    public async Task 森日程未解锁时不进入日历()
+    {
+        AppSettings settings = AppSettings.Current;
+        bool previousEnabled = settings.SenScheduleEnabled;
+        List<SenScheduleIteration> previousSchedules = settings.SenSchedules;
+        SenScheduleIteration iteration = SenScheduleParser.Parse("测试迭代", SampleMarkdown);
+        SenScheduleFeatureGate.Reset();
+        try
+        {
+            settings.SenSchedules = new List<SenScheduleIteration> { iteration };
+            settings.SenScheduleEnabled = true;
+            using CalendarViewModel viewModel = new(
+                new EmptyCalendarService(),
+                new SenScheduleService(settings.SenSchedules));
+            viewModel.NavigateToDate(new DateTime(2026, 8, 25));
+            await viewModel.RefreshDataAsync();
+
+            Assert.Empty(viewModel.CalendarDays
+                .SelectMany(day => day.SenEvents ?? Array.Empty<SenScheduleOccurrence>()));
+        }
+        finally
+        {
+            settings.SenScheduleEnabled = previousEnabled;
+            settings.SenSchedules = previousSchedules;
+            SenScheduleFeatureGate.Unlock();
         }
     }
 

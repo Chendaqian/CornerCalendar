@@ -91,6 +91,8 @@ public partial class SettingsWindow : Window
     private Point _weatherDragStartPoint;
     private bool _holidayFiltersLoaded;
     private bool _holidayDetailMode = true;
+    private int _settingsTitleClickCount;
+    private const int SenScheduleUnlockClickCount = 5;
 
     private static readonly string[] FontSizeLabels = { "最小", "较小", "标准", "较大", "最大" };
     private static readonly int[] IcsRefreshValues = { 10, 30, 60, 120 };
@@ -112,6 +114,10 @@ public partial class SettingsWindow : Window
         _settings = AppSettings.Load();
 
         InitializeComponent();
+
+        SenScheduleCategoryItem.Visibility = SenScheduleFeatureGate.IsUnlocked
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
         // 底部版本信息：版本号读取自程序集（构建时由 CornerCalendar.csproj 的 <Version> 注入）
         FooterVersionText.Text = $"v{AppVersion}";
@@ -234,8 +240,8 @@ public partial class SettingsWindow : Window
 
         // 托盘跑者选中回显（缺失时回退默认）
         SelectRunnerCardByName(_settings.RunnerName);
-        _runnerAnimationEnabled = _settings.RunnerAnimationEnabled;
-        UpdateRunnerAnimationButton();
+        _showRunnerInTray = _settings.ShowRunnerInTray;
+        UpdateRunnerVisibilityButton();
 
         // 字体大小滑块事件
         FontSizeSlider.ValueChanged += (_, _) => UpdateFontSizeLabel();
@@ -665,7 +671,38 @@ public partial class SettingsWindow : Window
         if (!_initialized)
             return;
 
+        if (SettingsCategoryList.SelectedIndex == 2 && !SenScheduleFeatureGate.IsUnlocked)
+        {
+            SettingsCategoryList.SelectedIndex = 3;
+            return;
+        }
+
         UpdateCategoryVisibility();
+    }
+
+    private void OnSettingsTitleMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        _settingsTitleClickCount++;
+        if (_settingsTitleClickCount < SenScheduleUnlockClickCount)
+            return;
+
+        _settingsTitleClickCount = 0;
+        bool unlocked = SenScheduleFeatureGate.Toggle();
+        if (unlocked)
+        {
+            SenScheduleCategoryItem.Visibility = Visibility.Visible;
+            SettingsCategoryList.SelectedIndex = 2;
+            SettingsCategoryList.ScrollIntoView(SenScheduleCategoryItem);
+        }
+        else
+        {
+            if (SettingsCategoryList.SelectedIndex == 2)
+                SettingsCategoryList.SelectedIndex = 3;
+            SenScheduleCategoryItem.Visibility = Visibility.Collapsed;
+        }
+
+        App.RefreshCalendarSettings();
     }
 
     private void OnSettingsCategoryMouseWheel(object sender, MouseWheelEventArgs e)
@@ -678,6 +715,8 @@ public partial class SettingsWindow : Window
             SettingsCategoryList.SelectedIndex + direction,
             0,
             SettingsCategoryList.Items.Count - 1);
+        if (!SenScheduleFeatureGate.IsUnlocked && nextIndex == 2)
+            nextIndex = Math.Clamp(nextIndex + direction, 0, SettingsCategoryList.Items.Count - 1);
         if (nextIndex != SettingsCategoryList.SelectedIndex)
             SettingsCategoryList.SelectedIndex = nextIndex;
 
@@ -687,9 +726,19 @@ public partial class SettingsWindow : Window
     private void UpdateCategoryVisibility()
     {
         int selectedIndex = SettingsCategoryList?.SelectedIndex ?? 0;
+        bool senScheduleVisible = SenScheduleFeatureGate.IsUnlocked;
+        if (!senScheduleVisible && selectedIndex == 2)
+        {
+            if (SettingsCategoryList != null)
+                SettingsCategoryList.SelectedIndex = 3;
+            return;
+        }
+
         GeneralPanel.Visibility = selectedIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
         CalendarPanel.Visibility = selectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
-        SenPanel.Visibility = selectedIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
+        SenPanel.Visibility = selectedIndex == 2 && senScheduleVisible
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         HolidayPanel.Visibility = selectedIndex == 3 ? Visibility.Visible : Visibility.Collapsed;
         WeatherPanel.Visibility = selectedIndex == 4 ? Visibility.Visible : Visibility.Collapsed;
         HistoryPanel.Visibility = selectedIndex == 5 ? Visibility.Visible : Visibility.Collapsed;
@@ -732,7 +781,7 @@ public partial class SettingsWindow : Window
     private readonly List<RunnerCardItem> _runnerCards = new(40);
     private DispatcherTimer? _runnerPreviewTimer;
     private RunnerCardItem? _selectedRunnerCard;
-    private bool _runnerAnimationEnabled = true;
+    private bool _showRunnerInTray = true;
 
     /// <summary>
     /// 构建跑者预览画廊：每个跑者一张卡片（动画预览 + 显示名 + 选中态边框）。
@@ -833,21 +882,21 @@ public partial class SettingsWindow : Window
             SelectRunnerCard(card);
     }
 
-    private void OnToggleRunnerAnimation(object sender, RoutedEventArgs e)
+    private void OnToggleRunnerVisibility(object sender, RoutedEventArgs e)
     {
-        _runnerAnimationEnabled = !_runnerAnimationEnabled;
-        _settings.RunnerAnimationEnabled = _runnerAnimationEnabled;
+        _showRunnerInTray = !_showRunnerInTray;
+        _settings.ShowRunnerInTray = _showRunnerInTray;
         _settings.Save();
         App.ApplyRunnerSettings();
-        UpdateRunnerAnimationButton();
+        UpdateRunnerVisibilityButton();
     }
 
-    private void UpdateRunnerAnimationButton()
+    private void UpdateRunnerVisibilityButton()
     {
-        RunnerAnimationToggleButton.Content = _runnerAnimationEnabled ? "关闭托盘动画" : "开启托盘动画";
-        RunnerAnimationToggleButton.ToolTip = _runnerAnimationEnabled
-            ? "关闭后保留静态托盘图标，不再播放跑者动画"
-            : "开启托盘跑者动画，帧速随 CPU 负载变化";
+        RunnerVisibilityToggleButton.Content = _showRunnerInTray ? "隐藏托盘跑者" : "显示托盘跑者";
+        RunnerVisibilityToggleButton.ToolTip = _showRunnerInTray
+            ? "关闭后托盘改为显示默认图标"
+            : "开启后在托盘显示跑者动画，帧速随 CPU 负载变化";
     }
 
     private void StartRunnerPreview()
@@ -1478,7 +1527,7 @@ public partial class SettingsWindow : Window
         // 托盘跑者
         if (_selectedRunnerCard != null)
             _settings.RunnerName = _selectedRunnerCard.Runner.Name;
-        _settings.RunnerAnimationEnabled = _runnerAnimationEnabled;
+        _settings.ShowRunnerInTray = _showRunnerInTray;
 
         // 持久化
         _settings.Save();
@@ -1545,8 +1594,8 @@ public partial class SettingsWindow : Window
         WeekStartMonday.IsChecked = defaults.WeekStartDay == WeekStartDay.Monday;
         ShowWeekNumbersCheckBox.IsChecked = defaults.ShowWeekNumbers;
         SelectRunnerCardByName(defaults.RunnerName);
-        _runnerAnimationEnabled = defaults.RunnerAnimationEnabled;
-        UpdateRunnerAnimationButton();
+        _showRunnerInTray = defaults.ShowRunnerInTray;
+        UpdateRunnerVisibilityButton();
     }
 
     private void ApplyAutoStartup(bool enable)

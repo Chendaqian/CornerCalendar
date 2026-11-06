@@ -60,7 +60,7 @@ public partial class App : Application
         // 左键点击弹出日历
         _trayIcon.TrayLeftMouseDown += (s, args) => TogglePopup();
 
-        // 托盘图标与悬停提示由跑者动画器接管（IconSource 仅作启动占位，提示每秒刷新为 CPU 占用）
+        // 托盘图标与悬停提示由跑者动画器接管（IconSource 作为默认图标，跑者显示时提示每秒刷新为 CPU 占用）
         _trayIcon.ToolTipText = "CornerCalendar";
 
         // 应用保存的主题设置，并监听系统深浅色变化（ISSUES #2）
@@ -76,7 +76,7 @@ public partial class App : Application
         try
         {
             _runnerAnimator = new TrayRunnerAnimator(_trayIcon);
-            _runnerAnimator.Start(settings.RunnerName, settings.RunnerAnimationEnabled);
+            _runnerAnimator.Start(settings.RunnerName, settings.ShowRunnerInTray);
         }
         catch (Exception ex)
         {
@@ -403,7 +403,7 @@ public partial class App : Application
 
         AppSettings settings = AppSettings.Current;
         app._runnerAnimator?.SetRunner(settings.RunnerName);
-        app._runnerAnimator?.SetEnabled(settings.RunnerAnimationEnabled);
+        app._runnerAnimator?.SetVisible(settings.ShowRunnerInTray);
     }
 
     public static void RefreshWeatherSettings()

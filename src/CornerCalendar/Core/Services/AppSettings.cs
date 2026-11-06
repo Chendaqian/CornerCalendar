@@ -44,6 +44,9 @@ public class AppSettings
     // #4 .ics 刷新频率（分钟）
     public int IcsRefreshMinutes { get; set; } = 120;
 
+    // 森日程功能是否在界面中显示，默认隐藏；仅由设置窗口标题五连击切换
+    public bool SenScheduleFeatureVisible { get; set; } = false;
+
     // 森日程显示开关，默认关闭
     public bool SenScheduleEnabled { get; set; } = false;
 
@@ -71,8 +74,8 @@ public class AppSettings
     // 当前选中的托盘跑者（Resources\Runners 下的文件夹名），缺失时回退默认值
     public string RunnerName { get; set; } = RunnerLibrary.DefaultRunnerName;
 
-    // 是否启用托盘跑者动画；关闭后托盘图标保持静态，并停止 CPU 采样
-    public bool RunnerAnimationEnabled { get; set; } = true;
+    // 是否在托盘显示跑者；关闭后显示默认托盘图标，并停止 CPU 采样
+    public bool ShowRunnerInTray { get; set; } = true;
 
     // 天气位置列表：空字符串表示使用公网 IP 自动定位
     public List<string> WeatherLocations { get; set; } = new() { "北京", "大连", "成都" };

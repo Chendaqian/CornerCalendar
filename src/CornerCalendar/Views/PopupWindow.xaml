@@ -31,7 +31,7 @@
 
             <!-- 天气摘要：多个位置时使用左右按钮切换 -->
             <Border Grid.Row="0" x:Name="WeatherSection"
-                    Margin="10,8,30,0"
+                    Margin="10,8,10,0"
                     Padding="4,7,10,7"
                     Background="{DynamicResource HoverBrush}"
                     CornerRadius="8"
@@ -125,30 +125,34 @@
                         </TextBlock>
                     </StackPanel>
                     <StackPanel Grid.Column="4"
-                                Orientation="Horizontal"
+                                Orientation="Vertical"
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Center">
-                        <Button x:Name="PreviousWeatherButton"
-                                Width="20" Height="28" Content="‹"
-                                FontSize="20" Padding="0" Margin="0"
-                                Background="Transparent" BorderThickness="0"
-                                Foreground="{DynamicResource TextSecondaryBrush}"
-                                Cursor="Hand" Click="OnPreviousWeatherClick"
-                                ToolTip="上一个天气位置" />
-                        <TextBlock x:Name="WeatherPageText" MinWidth="22"
-                                   Text="1/1" TextAlignment="Center"
-                                   FontSize="{DynamicResource FontSizeFootnote}"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                   VerticalAlignment="Center" />
-                        <Button x:Name="NextWeatherButton"
-                                Width="20" Height="28" Content="›"
-                                FontSize="20" Padding="0" Margin="0"
-                                Background="Transparent" BorderThickness="0"
-                                Foreground="{DynamicResource TextSecondaryBrush}"
-                                Cursor="Hand" Click="OnNextWeatherClick"
-                                ToolTip="下一个天气位置" />
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Center">
+                            <Button x:Name="PreviousWeatherButton"
+                                    Width="20" Height="28" Content="‹"
+                                    FontSize="20" Padding="0" Margin="0"
+                                    Background="Transparent" BorderThickness="0"
+                                    Foreground="{DynamicResource TextSecondaryBrush}"
+                                    Cursor="Hand" Click="OnPreviousWeatherClick"
+                                    ToolTip="上一个天气位置" />
+                            <TextBlock x:Name="WeatherPageText" MinWidth="22"
+                                       Text="1/1" TextAlignment="Center"
+                                       FontSize="{DynamicResource FontSizeFootnote}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center" />
+                            <Button x:Name="NextWeatherButton"
+                                    Width="20" Height="28" Content="›"
+                                    FontSize="20" Padding="0" Margin="0"
+                                    Background="Transparent" BorderThickness="0"
+                                    Foreground="{DynamicResource TextSecondaryBrush}"
+                                    Cursor="Hand" Click="OnNextWeatherClick"
+                                    ToolTip="下一个天气位置" />
+                        </StackPanel>
                         <Button x:Name="RefreshWeatherButton"
-                                Width="20" Height="28" Padding="0" Margin="2,0,0,0"
+                                Width="20" Height="22" Padding="0" Margin="0,1,0,0"
+                                HorizontalAlignment="Center"
                                 Background="Transparent" BorderThickness="0"
                                 Cursor="Hand" Click="OnRefreshWeatherClick"
                                 ToolTip="刷新当前天气">
@@ -162,29 +166,6 @@
                     </StackPanel>
                 </Grid>
             </Border>
-
-            <Button Grid.Row="0"
-                    Width="22"
-                    Height="22"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Top"
-                    Margin="0,4,4,0"
-                    Panel.ZIndex="10"
-                    Background="Transparent"
-                    BorderThickness="0"
-                    Cursor="Hand"
-                    Click="OnClosePopupClick"
-                    ToolTip="关闭">
-                <Path Data="M4,4 L20,20 M20,4 L4,20"
-                      Stroke="{DynamicResource TextSecondaryBrush}"
-                      StrokeThickness="2"
-                      StrokeStartLineCap="Round"
-                      StrokeEndLineCap="Round"
-                      Stretch="Uniform"
-                      Width="11"
-                      Height="11" />
-            </Button>
-
             <!-- 月历控件 -->
             <local:MonthCalendar Grid.Row="1"
                                  x:Name="Calendar"

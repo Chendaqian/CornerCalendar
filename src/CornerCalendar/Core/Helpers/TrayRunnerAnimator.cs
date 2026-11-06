@@ -2,6 +2,9 @@ using CornerCalendar.Core.Models;
 using Hardcodet.Wpf.TaskbarNotification;
 using System.Diagnostics;
 using System.Drawing;
+using System.IO;
+using System.Windows;
+using System.Windows.Resources;
 using System.Windows.Threading;
 
 namespace CornerCalendar.Core.Helpers;
@@ -27,9 +30,10 @@ internal sealed class TrayRunnerAnimator : IDisposable
     private IReadOnlyList<RunnerInfo> _runners = Array.Empty<RunnerInfo>();
     private RunnerInfo? _currentRunner;
     private List<Icon> _icons = new();
+    private Icon? _defaultIcon;
     private int _currentFrame;
     private bool _isDarkTheme;
-    private bool _animationEnabled = true;
+    private bool _runnerVisible = true;
     private bool _disposed;
 
     internal TrayRunnerAnimator(TaskbarIcon trayIcon)
@@ -41,34 +45,35 @@ internal sealed class TrayRunnerAnimator : IDisposable
             Interval = TimeSpan.FromMilliseconds(CpuLoadMonitor.CalculateInterval(0f))
         };
         _frameTimer.Tick += OnFrameTick;
+        _defaultIcon = LoadDefaultIcon();
     }
 
     /// <summary>
     /// 启动托盘图标：枚举跑者并加载指定跑者（缺失时回退默认）。
-    /// 动画开启时启动换帧与后台采样定时器；关闭时只显示静态首帧。
+    /// 显示跑者时启动换帧与后台采样定时器；隐藏时使用默认托盘图标。
     /// </summary>
-    internal void Start(string? runnerName, bool animationEnabled)
+    internal void Start(string? runnerName, bool showRunner)
     {
         _runners = RunnerLibrary.EnumerateRunners();
         _isDarkTheme = ThemeHelper.IsSystemDarkMode();
-        _animationEnabled = animationEnabled;
+        _runnerVisible = showRunner;
         ApplyRunner(runnerName);
-        if (_animationEnabled)
+        if (_runnerVisible)
             StartRuntimeTimers();
         else
-            StopRuntimeTimers();
+            ShowDefaultIcon();
     }
 
     /// <summary>
-    /// 开启或关闭托盘跑者动画；关闭后保留静态托盘图标并停止 CPU 采样。
+    /// 显示或隐藏托盘跑者；隐藏后切回默认托盘图标并停止 CPU 采样。
     /// </summary>
-    internal void SetEnabled(bool enabled)
+    internal void SetVisible(bool visible)
     {
-        if (_disposed || _animationEnabled == enabled)
+        if (_disposed || _runnerVisible == visible)
             return;
 
-        _animationEnabled = enabled;
-        if (enabled)
+        _runnerVisible = visible;
+        if (visible)
             StartRuntimeTimers();
         else
             StopRuntimeTimers();
@@ -95,9 +100,7 @@ internal sealed class TrayRunnerAnimator : IDisposable
         _frameTimer.Stop();
         _sampleTimer?.Dispose();
         _sampleTimer = null;
-        if (_icons.Count > 0)
-            _trayIcon.Icon = _icons[0];
-        _trayIcon.ToolTipText = "CornerCalendar";
+        ShowDefaultIcon();
     }
 
     /// <summary>
@@ -105,7 +108,7 @@ internal sealed class TrayRunnerAnimator : IDisposable
     /// </summary>
     internal void SetRunner(string? runnerName)
     {
-        if (ApplyRunner(runnerName) && _animationEnabled && !_frameTimer.IsEnabled)
+        if (ApplyRunner(runnerName) && _runnerVisible && !_frameTimer.IsEnabled)
             _frameTimer.Start();
     }
 
@@ -136,15 +139,45 @@ internal sealed class TrayRunnerAnimator : IDisposable
 
         List<Icon> oldIcons = _icons;
         _icons = new List<Icon>(loaded);
-        _trayIcon.Icon = _icons[0];
+        if (_runnerVisible)
+            _trayIcon.Icon = _icons[0];
         _currentFrame = 1 % _icons.Count;
         foreach (Icon icon in oldIcons)
             icon.Dispose();
     }
 
+    /// <summary>
+    /// 切回应用自带的默认托盘图标，并恢复默认悬停提示。
+    /// </summary>
+    private void ShowDefaultIcon()
+    {
+        if (_defaultIcon != null)
+            _trayIcon.Icon = _defaultIcon;
+        _trayIcon.ToolTipText = "CornerCalendar";
+    }
+
+    private static Icon? LoadDefaultIcon()
+    {
+        try
+        {
+            StreamResourceInfo? resource = Application.GetResourceStream(
+                new Uri("pack://application:,,,/Resources/icon.ico", UriKind.Absolute));
+            if (resource == null)
+                return null;
+
+            using Stream stream = resource.Stream;
+            return new Icon(stream);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"CornerCalendar: 默认托盘图标加载失败：{ex.Message}");
+            return null;
+        }
+    }
+
     private void OnFrameTick(object? sender, EventArgs e)
     {
-        if (!_animationEnabled || _icons.Count == 0)
+        if (!_runnerVisible || _icons.Count == 0)
             return;
 
         if (_currentFrame >= _icons.Count)
@@ -158,7 +191,7 @@ internal sealed class TrayRunnerAnimator : IDisposable
     /// </summary>
     private void OnSampleTick(object? state)
     {
-        if (_disposed || !_animationEnabled)
+        if (_disposed || !_runnerVisible)
             return;
 
         float load = _cpuMonitor.SampleLoad();
@@ -168,7 +201,7 @@ internal sealed class TrayRunnerAnimator : IDisposable
         {
             _dispatcher.BeginInvoke(new Action(() =>
             {
-                if (_disposed || !_animationEnabled)
+                if (_disposed || !_runnerVisible)
                     return;
 
                 // 悬停提示与 RunCat365 一致：每秒刷新为 CPU 占用
@@ -208,6 +241,8 @@ internal sealed class TrayRunnerAnimator : IDisposable
         foreach (Icon icon in _icons)
             icon.Dispose();
         _icons.Clear();
+        _defaultIcon?.Dispose();
+        _defaultIcon = null;
         _cpuMonitor.Dispose();
     }
 }

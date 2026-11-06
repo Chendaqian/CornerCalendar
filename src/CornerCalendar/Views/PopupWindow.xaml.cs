@@ -343,16 +343,15 @@ public partial class PopupWindow : Window
 
     private void UpdateSenScheduleButton()
     {
-        bool enabled = _settings.SenScheduleEnabled;
-        // 开关关闭时也保留“森”按钮，便于直接从主窗口重新开启。
-        SenScheduleButton.Opacity = enabled ? 1.0 : 0.55;
-        SenScheduleButton.Background = enabled
-            ? (Brush)FindResource("SelectedBrush")
-            : Brushes.Transparent;
-        SenScheduleButtonText.SetResourceReference(
-            TextBlock.ForegroundProperty,
-            enabled ? "TodayAccentBrush" : "TextSecondaryBrush");
-        SenScheduleButton.ToolTip = enabled ? "关闭森日程" : "开启森日程";
+        bool enabled = SenScheduleFeatureGate.IsUnlocked && _settings.SenScheduleEnabled;
+        // 总开关关闭时隐藏“森”按钮，重新开启需进入设置窗口。
+        SenScheduleButton.Visibility = enabled
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        SenScheduleButton.Opacity = 1.0;
+        SenScheduleButton.Background = (Brush)FindResource("SelectedBrush");
+        SenScheduleButtonText.SetResourceReference(TextBlock.ForegroundProperty, "TodayAccentBrush");
+        SenScheduleButton.ToolTip = "关闭森日程";
     }
 
     public void RefreshSettings()

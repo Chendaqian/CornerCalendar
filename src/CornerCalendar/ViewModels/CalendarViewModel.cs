@@ -529,7 +529,7 @@ public class CalendarViewModel : INotifyPropertyChanged, IDisposable
 
     private List<SenScheduleOccurrence> GetSenOccurrences(DateTime start, DateTime end)
     {
-        if (!AppSettings.Current.SenScheduleEnabled)
+        if (!SenScheduleFeatureGate.IsUnlocked || !AppSettings.Current.SenScheduleEnabled)
             return new List<SenScheduleOccurrence>();
 
         return _senScheduleService.GetOccurrences(start, end);

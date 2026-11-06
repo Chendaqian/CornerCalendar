@@ -18,19 +18,33 @@ public class AppSettingsTests
     {
         AppSettings settings = AppSettings.CreateDefaults();
 
-        Assert.Equal("rubber-duck-frames", settings.RunnerName);
-        Assert.True(settings.RunnerAnimationEnabled);
+        Assert.Equal("icosahedron-frames", settings.RunnerName);
+        Assert.True(settings.ShowRunnerInTray);
+        Assert.False(settings.AutoStartup);
+        Assert.False(settings.SenScheduleFeatureVisible);
         Assert.True(settings.SenScheduleEnabled);   // 属性初始化器为 false，只有内置 default-settings.json 能提供 true
         Assert.Equal(0, settings.HistoryMaxItems);
         Assert.Empty(settings.SenSchedules);        // 迭代不内置，首次启动从 SenOnlineUrl 下载
     }
 
     [Fact]
-    public void 新建设置默认显示森日程阶段圆圈()
+    public void 森日程功能显示状态可序列化()
+    {
+        AppSettings settings = AppSettings.CreateDefaults();
+        settings.SenScheduleFeatureVisible = true;
+
+        string json = JsonSerializer.Serialize(settings, JsonOptions);
+        AppSettings restored = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions)!;
+
+        Assert.True(restored.SenScheduleFeatureVisible);
+    }
+
+    [Fact]
+    public void 新建设置默认关闭森日程阶段圆圈()
     {
         AppSettings settings = AppSettings.CreateDefaults();
 
-        Assert.True(settings.ShowSenPhaseCircles);
+        Assert.False(settings.ShowSenPhaseCircles);
     }
 
     [Fact]
