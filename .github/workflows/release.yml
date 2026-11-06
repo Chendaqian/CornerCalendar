@@ -25,6 +25,8 @@ jobs:
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: 安装 .NET SDK
         uses: actions/setup-dotnet@v4
@@ -92,23 +94,32 @@ jobs:
           Compress-Archive -Path "release\CornerCalendar-v$version-win-x64-self-contained" -DestinationPath "release\CornerCalendar-v$version-win-x64-self-contained.zip"
           Compress-Archive -Path "release\CornerCalendar-v$version-win-x64-framework" -DestinationPath "release\CornerCalendar-v$version-win-x64-framework.zip"
 
+      - name: 生成提交记录
+        shell: pwsh
+        env:
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $previousTag = (& git describe --tags --abbrev=0 "$env:RELEASE_COMMIT^" 2>$null | Out-String).Trim()
+          if ($LASTEXITCODE -eq 0 -and $previousTag) {
+            $commits = @(& git log --no-merges --format='- %s (%h)' "$previousTag..$env:RELEASE_COMMIT")
+          }
+          else {
+            $commits = @(& git log -n 20 --no-merges --format='- %s (%h)' $env:RELEASE_COMMIT)
+          }
+          if ($LASTEXITCODE -ne 0) {
+            throw '读取 Git 提交记录失败。'
+          }
+          if ($commits.Count -eq 0) {
+            $commits = @('- 本版本没有可展示的非合并提交记录。')
+          }
+          @('## 变更内容', '', $commits, '', '## 发布包', '', '- `self-contained`：包含 .NET 运行时。', '- `framework`：需要安装 .NET 8 Desktop Runtime。') |
+            Set-Content -LiteralPath 'release-notes.md' -Encoding utf8
+
       - name: 创建 GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: v${{ steps.read_version.outputs.version }}
-          body: |
-            ## 变更内容
-
-            - 日历数据统一使用 ICS，内置中国日历包含法定节假日、节日纪念日、二十四节气和农历，并移除 Windows 系统日历数据源。
-            - 天气支持后台预加载、本地缓存和 30/60/120/240 分钟刷新设置，默认 120 分钟。
-            - 托盘图标为跑者动画（参考 RunCat365，资源来自 RunnerGallery），帧速随 CPU 负载动态变化，点击跑者打开日历主面板；各显示器保留 Windows 原生任务栏时间和通知中心。
-            - 设置窗口补充 ICS 地址、天气刷新频率、关于和更新页面；配置、缓存和错误日志统一保存到 `%LOCALAPPDATA%\\CornerCalendar\\`。
-            - 优化天气详情、七天天气、日历提示、主题和托盘菜单显示。
-
-            ## 发布包
-
-            - `self-contained`：包含 .NET 运行时。
-            - `framework`：需要安装 .NET 8 Desktop Runtime。
+          body_path: release-notes.md
           files: |
             release/*.zip
-          generate_release_notes: false

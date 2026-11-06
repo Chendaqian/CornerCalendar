@@ -143,3 +143,18 @@ Get-ChildItem -LiteralPath $OutputRoot |
     Format-Table -AutoSize
 
 Write-Host '提示：framework 制品要求客户机器已安装 .NET 8 桌面运行时（.NET 8 Desktop Runtime，Microsoft.WindowsDesktop.App）。'
+
+# ---------- 可选启动自包含制品 ----------
+if (-not [Console]::IsInputRedirected -and -not $env:CI -and -not $env:GITHUB_ACTIONS) {
+    $launchChoice = Read-Host '是否立即启动 CornerCalendar？（Y/N）'
+    if ($launchChoice -match '^(y|yes)$') {
+        $selfContainedDir = Join-Path $OutputRoot "CornerCalendar-v$Version-$Runtime-self-contained"
+        $executable = Join-Path $selfContainedDir 'CornerCalendar.exe'
+        if (Test-Path -LiteralPath $executable -PathType Leaf) {
+            Start-Process -FilePath $executable
+        }
+        else {
+            Write-Warning "找不到可启动程序：$executable"
+        }
+    }
+}
